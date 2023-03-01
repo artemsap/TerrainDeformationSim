@@ -30,9 +30,9 @@ Material:
     m_Floats:
     - _Glossiness: 0.5
     - _HeightAmount: 1
-    - _Metallic: 1
-    - _TesselationCount: 4
+    - _Metallic: 0
+    - _TesselationCount: 21.1
     m_Colors:
     - _Color: {r: 1, g: 1, b: 1, a: 1}
-    - _Color2: {r: 0.5, g: 0.5, b: 0.5019608, a: 1}
+    - _Color2: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []

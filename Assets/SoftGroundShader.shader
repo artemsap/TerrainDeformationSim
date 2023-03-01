@@ -20,8 +20,7 @@ Shader "Custom/SoftGroundShader"
         // Physically based Standard lighting model, and enable shadows on all light types
         #pragma surface surf Standard fullforwardshadows vertex:vert tessellate:tess
 
-        // Use shader model 3.0 target, to get nicer looking lighting
-        #pragma target 3.0
+        #pragma target 4.6
 
         sampler2D _MainTex;
         sampler2D _HeightMap;

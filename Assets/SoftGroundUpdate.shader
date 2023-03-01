@@ -2,6 +2,8 @@ Shader "Soft Ground Height Update"
 {
     Properties
     {
+        _brushSize("Brush size", Range(0, 1)) = 0.1
+        _brushIntensity("Brush intensity", Range(-1, 1)) = 0
     }
 
         SubShader
@@ -18,13 +20,17 @@ Shader "Soft Ground Height Update"
             #pragma target 3.0
 
             float4 _DrawPosition;
+            float _brushSize;
+            float _brushIntensity;
 
             float4 frag(v2f_customrendertexture IN) : COLOR
             {
                 float4 prevColor = tex2D(_SelfTexture2D, IN.localTexcoord.xy);
-                float4 drawColor = smoothstep(0, 0.1, distance(IN.localTexcoord.xy, _DrawPosition));
+                float4 drawColor = smoothstep(_brushIntensity, _brushSize, distance(IN.localTexcoord.xy, _DrawPosition));
                
-                return clamp(prevColor - abs(drawColor - 1), float4(0, 0, 0, 0), float4(1, 1, 1, 1));
+                float r = clamp(prevColor.r - abs(drawColor.r - 1), 0, 1);
+
+                return float4(r, 0, 0, 0);
             }
             ENDCG
         }
