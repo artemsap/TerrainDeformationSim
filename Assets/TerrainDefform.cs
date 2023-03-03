@@ -32,31 +32,15 @@ public class TerrainDefform : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        //DeformTerrainByObjects(collision);
-        DeformTerrainByObjects_Opt(collision);
+        DeformTerrainByObjects(collision);
     }
 
     private void OnCollisionStay(Collision collision)
     {
-        //DeformTerrainByObjects(collision);
-        DeformTerrainByObjects_Opt(collision);
+        DeformTerrainByObjects(collision);
     }
 
     void DeformTerrainByObjects(Collision collision)
-    {
-        List<Vector2> list_height_pix = GetHeightPix_collide(collision);
-
-        var heights_ter = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
-        foreach (var pix in list_height_pix)
-        {
-            heights_ter[(int)pix.x, (int)pix.y] = Mathf.Clamp(heights_ter[(int)pix.x, (int)pix.y] - 0.0001f,
-                                                              default_height[(int)pix.x, (int)pix.y] - 0.002f,
-                                                              default_height[(int)pix.x, (int)pix.y]);
-        }
-        terrain.terrainData.SetHeights(0, 0, heights_ter);
-    }
-
-    void DeformTerrainByObjects_Opt(Collision collision)
     {
         List<Vector2> list_height_pix = GetHeightPix_collide(collision);
 
