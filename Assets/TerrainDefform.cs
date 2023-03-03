@@ -44,10 +44,11 @@ public class TerrainDefform : MonoBehaviour
     {
         List<Vector2> list_height_pix = GetHeightPix_collide(collision);
 
+        //Находит минимум и максимумы по обоим осям, чтобы считать только маленький "кусочек" координат террейна
+        //Сделано для того, чтобы не считывать огромную матрицу высот для оптимизации
         int min_x = terrain.terrainData.heightmapResolution;
         int min_y = terrain.terrainData.heightmapResolution;
         int max_x = 0, max_y = 0;
-
         foreach (var pix in list_height_pix)
         {
             if (pix.x < min_x) min_x = (int)pix.x;
@@ -55,20 +56,26 @@ public class TerrainDefform : MonoBehaviour
             if (pix.x > max_x) max_x = (int)pix.x;
             if (pix.y > max_y) max_y = (int)pix.y;
         }
-
-        max_x += 1;
-        max_y += 1;
+        max_x++;
+        max_y++;
 
         var heights_ter = terrain.terrainData.GetHeights(min_y, min_x, max_y - min_y, max_x - min_x);
+
+        //Потенциально этот цикл можно будет распараллелить используя шейдер
+        //Цикл с деформацией террейна по заданой логике
         foreach (var pix in list_height_pix)
         {
             int index_x = (int)(pix.x - min_x);
             int index_y = (int)(pix.y - min_y);
-            var x = heights_ter[index_x, index_y] - 0.0001f;
+
+            var x = heights_ter[index_x, index_y] - 0.0001f; // <--- Непосредственно здесь происходит деформация
+
             var min = default_height[(int)pix.x, (int)pix.y] - 0.01f;
             var max = default_height[(int)pix.x, (int)pix.y];
+
             heights_ter[index_x, index_y] = Mathf.Clamp(x, min, max);
         }
+
         terrain.terrainData.SetHeights(min_y, min_x, heights_ter);
     }
 
