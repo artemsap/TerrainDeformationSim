@@ -18,7 +18,7 @@ Shader "Custom/SoftGroundShader"
 
         CGPROGRAM
         // Physically based Standard lighting model, and enable shadows on all light types
-        #pragma surface surf Standard fullforwardshadows vertex:vert tessellate:tess
+        #pragma surface surf Standard fullforwardshadows vertex:vert tessellate:tess addshadow nolightmap
 
         #pragma target 4.6
 

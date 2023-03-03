@@ -20,7 +20,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs: []
     m_Floats:
-    - _brushIntensity: -0.1
+    - _brushIntensity: -0.5
     - _brushSize: 0.1
     m_Colors: []
   m_BuildTextureStacks: []
