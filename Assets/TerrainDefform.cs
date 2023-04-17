@@ -7,6 +7,7 @@ using UnityEngine.Analytics;
 using static UnityEditor.Experimental.AssetDatabaseExperimental.AssetDatabaseCounters;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
+using static UnityEditor.Progress;
 
 struct node_classification
 {
@@ -18,6 +19,8 @@ public class TerrainDefform : MonoBehaviour
 {
     public CustomRenderTexture heightMap;
     public Texture2D output;
+
+    public bool onlyDeformation;
 
     public float Kc = 2370.0f;
     public float Kf = 60300.0f;
@@ -92,21 +95,73 @@ public class TerrainDefform : MonoBehaviour
             }
         }
 
-        classification = detect_border(classification, delta_heights);
+        if (!onlyDeformation)
+        {
+            classification = detect_border(classification, delta_heights);
 
-        int n_contacts = 0;
-        final_classifiction(classification, delta_heights, ref n_contacts);
+            int n_contacts = 0;
+            final_classifiction(classification, delta_heights, ref n_contacts);
 
-        //Определеяем площадь "footprint" и длину его контура
-        int contur = 0;
-        int ploshad = 0;
-        calc_footprint_params(classification, ref contur, ref ploshad);
+            //Определеяем площадь "footprint" и длину его контура
+            int contur = 0;
+            int ploshad = 0;
+            calc_footprint_params(classification, ref contur, ref ploshad);
 
-        float[,] pressure = calc_pressure(delta_heights, contur, ploshad);
+            float[,] pressure = calc_pressure(delta_heights, contur, ploshad);
 
-        float [,] centrality_coef = calc_centrality_distr(delta_heights, n_contacts);
+            float[,] centrality_coef = calc_centrality_distr(delta_heights, n_contacts);
 
-        float[,] final_pressure = calc_final_pressure(centrality_coef, pressure);
+            float[,] final_pressure = calc_final_pressure(centrality_coef, pressure);
+        }
+
+        Vector3[,] normal_vectors = new Vector3[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+        for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
+        {
+            for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
+            {
+                if (delta_heights[j, i] == 0)
+                    continue;
+
+                Vector3 point_a = new Vector3(j, heights_ter[j, i] * terrain.terrainData.heightmapScale.y, i);
+                Vector3 point_b = new Vector3(j + 1, heights_ter[j + 1, i] * terrain.terrainData.heightmapScale.y, i);
+                Vector3 point_c = new Vector3(j, heights_ter[j, i + 1] * terrain.terrainData.heightmapScale.y, i + 1);
+
+                Vector3 side_1 = point_b - point_a;
+                Vector3 side_2 = point_c - point_a;
+
+                normal_vectors[j, i] = Vector3.Cross(side_1, side_2);
+
+                float norm_length = normal_vectors[j, i].magnitude;
+                normal_vectors[j, i] /= norm_length;
+
+                //Debug.DrawRay(new Vector3(step_x * i, heights_ter[j, i] * terrain.terrainData.heightmapScale.y, step_z * j), normal_vectors[j, i] * 5, Color.green, 10f);
+            }
+        }
+
+        float[,] final_delta_sink = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+        float[,] final_delta_buld = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+        for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
+        {
+            for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
+            {
+                if (delta_heights[j, i] == 0)
+                    continue;
+
+                float chislitel = normal_vectors[j, i].y * normal_vectors[j, i].y;
+                float znamenatel = normal_vectors[j, i].x * normal_vectors[j, i].x + 
+                    normal_vectors[j, i].y * normal_vectors[j, i].y + 
+                    normal_vectors[j, i].z * normal_vectors[j, i].z;
+
+                final_delta_sink[j, i] = delta_heights[j, i] * (chislitel / znamenatel);
+
+                float chislitel_buld = normal_vectors[j, i].x * normal_vectors[j, i].x +
+                    normal_vectors[j, i].z * normal_vectors[j, i].z;
+
+                final_delta_buld[j, i] = delta_heights[j, i] * (chislitel_buld / znamenatel);
+
+                heights_ter[j, i] = heights_ter[j, i] - final_delta_sink[j, i] - final_delta_buld[j,i];
+            }
+        }
 
         terrain.terrainData.SetHeights(0, 0, heights_ter);
     }
