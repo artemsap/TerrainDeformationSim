@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 
-[CustomEditor(typeof(TerrainDeform))]
-public class TerrainDeformEditor : Editor
+[CustomEditor(typeof(TerrainDefform))]
+public class TerrainDefformEditor : Editor
 {
     public override void OnInspectorGUI()
     {
-        TerrainDeform targ = (TerrainDeform)target;
+        TerrainDefform targ = (TerrainDefform)target;
 
         DrawDefaultInspector();
 

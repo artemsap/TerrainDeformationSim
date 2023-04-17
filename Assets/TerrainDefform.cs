@@ -6,6 +6,7 @@ using System.IO;
 using UnityEngine.Analytics;
 using static UnityEditor.Experimental.AssetDatabaseExperimental.AssetDatabaseCounters;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.WindowsRuntime;
 
 struct node_classification
 {
@@ -13,7 +14,7 @@ struct node_classification
     public int cnt;
 }
 
-public class TerrainDeform : MonoBehaviour
+public class TerrainDefform : MonoBehaviour
 {
     public CustomRenderTexture heightMap;
     public Texture2D output;
@@ -21,8 +22,6 @@ public class TerrainDeform : MonoBehaviour
     public float Kc = 2370.0f;
     public float Kf = 60300.0f;
     public float n = 0.63f;
-
-    public float[,] pressure;
 
     Terrain terrain;
 
@@ -93,117 +92,21 @@ public class TerrainDeform : MonoBehaviour
             }
         }
 
-        //path of file
-        //string path = Application.dataPath + "/classification.txt";
-        //if (!File.Exists(path))
-        //    File.WriteAllText(path, "Startfile: \n\n");
+        classification = detect_border(classification, delta_heights);
 
         int n_contacts = 0;
-
-        //Ќа основе тех границ, которые мы определили, классифицируем каждую вершину
-        for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
-        {
-            for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
-            {
-                float left = delta_heights[j, i - 1];
-                float right = delta_heights[j, i + 1];
-                float up = delta_heights[j + 1, i];
-                float down = delta_heights[j - 1, i];
-
-                if (left == 0 && right == 0 && up == 0 && down == 0)
-                {
-                    //File.AppendAllText(path, classification[j, i].cnt.ToString());
-                    continue;
-                }
-
-                n_contacts++;
-
-                if (left != 0 && !classification[j, i - 1].border)
-                    classification[j, i].cnt++;
-                if (right != 0 && !classification[j, i + 1].border)
-                    classification[j, i].cnt++;
-                if (up != 0 && !classification[j + 1, i].border)
-                    classification[j, i].cnt++;
-                if (down != 0 && !classification[j - 1, i].border)
-                    classification[j, i].cnt++;
-
-                //File.AppendAllText(path, classification[j, i].cnt.ToString());  
-            }
-            //File.AppendAllText(path, "\n");
-        }
+        final_classifiction(classification, delta_heights, ref n_contacts);
 
         //ќпределе€ем площадь "footprint" и длину его контура
-
-        int countur = 0;
+        int contur = 0;
         int ploshad = 0;
-        for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
-        {
-            for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
-            {
-                if (classification[j, i].cnt == 0)
-                    continue;
+        calc_footprint_params(classification, ref contur, ref ploshad);
 
-                if (classification[j, i].border)
-                    countur += classification[j, i].cnt;
-                else
-                    ploshad += classification[j, i].cnt;
-            }
-        }
+        float[,] pressure = calc_pressure(delta_heights, contur, ploshad);
 
-        pressure = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
-        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
-        {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
-            {
-                pressure[j, i] = (Kc * (countur / (2 * ploshad)) + Kf)*Mathf.Pow(delta_heights[j,i] * terrain.terrainData.heightmapScale.y, n); 
-            }
-        }
+        float [,] centrality_coef = calc_centrality_distr(delta_heights, n_contacts);
 
-        float summ_distance = 0.0f;
-        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
-        {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
-            {
-                if (delta_heights[j, i] == 0)
-                    continue;
-
-                summ_distance += calc_distance(new Vector2(j, i), delta_heights);
-            }
-        }
-
-        //path of file
-      //  string path = Application.dataPath + "/centrality_coef.csv";
-       // if (!File.Exists(path))
-       //     File.WriteAllText(path, "\n");
-
-        float[,] centrality_coef = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
-
-        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
-        {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
-            {
-                if (delta_heights[j, i] == 0)
-                {
-                    //File.AppendAllText(path, centrality_coef[j, i].ToString() + ';');
-                    continue;
-                }
-                    
-                centrality_coef[j, i] = (n_contacts * calc_distance(new Vector2(j, i), delta_heights)) / summ_distance;
-
-                //File.AppendAllText(path, centrality_coef[j, i].ToString() + ';');  
-            }
-            //File.AppendAllText(path, "\n");
-        }
-
-
-        float[,] final_pressure = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
-        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
-        {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
-            {
-                final_pressure[j, i] = pressure[j, i] * centrality_coef[j, i];
-            }
-        }
+        float[,] final_pressure = calc_final_pressure(centrality_coef, pressure);
 
         terrain.terrainData.SetHeights(0, 0, heights_ter);
     }
@@ -253,6 +156,132 @@ public class TerrainDeform : MonoBehaviour
         }
 
         return nodes;
+    }
+
+    node_classification[,] final_classifiction(node_classification[,] nodes, float[,] delta_heights, ref int num_contacts)
+    {
+        //string path = Application.dataPath + "/classification.txt";
+        //if (!File.Exists(path))
+        //    File.WriteAllText(path, "Startfile: \n\n");
+
+        //Ќа основе тех границ, которые мы определили, классифицируем каждую вершину
+        for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
+        {
+            for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
+            {
+                float left = delta_heights[j, i - 1];
+                float right = delta_heights[j, i + 1];
+                float up = delta_heights[j + 1, i];
+                float down = delta_heights[j - 1, i];
+
+                if (left == 0 && right == 0 && up == 0 && down == 0)
+                {
+                    //File.AppendAllText(path, nodes[j, i].cnt.ToString());
+                    continue;
+                }
+
+                num_contacts++;
+
+                if (left != 0 && !nodes[j, i - 1].border)
+                    nodes   [j, i].cnt++;
+                if (right != 0 && !nodes[j, i + 1].border)
+                    nodes[j, i].cnt++;
+                if (up != 0 && !nodes[j + 1, i].border)
+                    nodes[j, i].cnt++;
+                if (down != 0 && !nodes[j - 1, i].border)
+                    nodes[j, i].cnt++;
+
+                //File.AppendAllText(path, nodes[j, i].cnt.ToString());  
+            }
+            //File.AppendAllText(path, "\n");
+        }
+
+
+        return nodes;
+    }
+
+    void calc_footprint_params(node_classification[,] nodes, ref int contur, ref int ploshad)
+    {
+        for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
+        {
+            for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
+            {
+                if (nodes[j, i].cnt == 0)
+                    continue;
+
+                if (nodes[j, i].border)
+                    contur += nodes[j, i].cnt;
+                else
+                    ploshad += nodes[j, i].cnt;
+            }
+        }
+    }
+
+    float[,] calc_pressure(float[,] delta_heights, int contur, int ploshad)
+    {
+        float [,] pressure = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
+        {
+            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
+            {
+                pressure[j, i] = (Kc * (contur / (2 * ploshad)) + Kf) * Mathf.Pow(delta_heights[j, i] * terrain.terrainData.heightmapScale.y, n);
+            }
+        }
+        return pressure;
+    }
+
+    float[,] calc_centrality_distr(float[,] delta_heights, int n_contacts)
+    {
+        float summ_distance = 0.0f;
+        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
+        {
+            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
+            {
+                if (delta_heights[j, i] == 0)
+                    continue;
+
+                summ_distance += calc_distance(new Vector2(j, i), delta_heights);
+            }
+        }
+
+        //path of file
+        //  string path = Application.dataPath + "/centrality_coef.csv";
+        // if (!File.Exists(path))
+        //     File.WriteAllText(path, "\n");
+
+        float[,] centrality_coef = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+
+        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
+        {
+            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
+            {
+                if (delta_heights[j, i] == 0)
+                {
+                    //File.AppendAllText(path, centrality_coef[j, i].ToString() + ';');
+                    continue;
+                }
+
+                centrality_coef[j, i] = (n_contacts * calc_distance(new Vector2(j, i), delta_heights)) / summ_distance;
+
+                //File.AppendAllText(path, centrality_coef[j, i].ToString() + ';');  
+            }
+            //File.AppendAllText(path, "\n");
+        }
+
+        return centrality_coef;
+    }
+
+    float[,] calc_final_pressure(float[,] centrality_coef, float[,] pressure)
+    {
+        float[,] final_pressure = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
+        {
+            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
+            {
+                final_pressure[j, i] = pressure[j, i] * centrality_coef[j, i];
+            }
+        }
+        return final_pressure;
     }
 
     void DeformTerrainByObjects(Collision collision)
