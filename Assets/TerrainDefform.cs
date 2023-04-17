@@ -8,6 +8,8 @@ using static UnityEditor.Experimental.AssetDatabaseExperimental.AssetDatabaseCou
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 using static UnityEditor.Progress;
+using Unity.Profiling;
+using System.Linq;
 
 struct node_classification
 {
@@ -25,6 +27,8 @@ public class TerrainDefform : MonoBehaviour
     public float Kc = 2370.0f;
     public float Kf = 60300.0f;
     public float n = 0.63f;
+
+    public int m = 1;
 
     Terrain terrain;
 
@@ -65,6 +69,10 @@ public class TerrainDefform : MonoBehaviour
         var heights_ter = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
         float[,] delta_heights = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
         node_classification[,] classification = new node_classification[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+
+        List<Vector3> nodes_coordinates = new List<Vector3>();
+        List<Vector3> borders_coordinates = new List<Vector3>();
+
         Vector3 start = terrain.GetComponent<Transform>().position;
         Vector3 end = terrain.GetComponent<Transform>().position + new Vector3(terrain.terrainData.size.x, 0, terrain.terrainData.size.z);
 
@@ -90,17 +98,17 @@ public class TerrainDefform : MonoBehaviour
                         2);*/
 
                     delta_heights[j, i] = (heights_ter[j, i] * terrain.terrainData.heightmapScale.y - hit.distance) / terrain.terrainData.heightmapScale.y;
+                    nodes_coordinates.Add(new Vector3(j, delta_heights[j, i], i));
                     //heights_ter[j, i] = heights_ter[j, i] - delta_heights[j, i];
                 }
             }
         }
 
+        classification = detect_border(classification, delta_heights, ref borders_coordinates);
+        
         if (!onlyDeformation)
         {
-            classification = detect_border(classification, delta_heights);
-
-            int n_contacts = 0;
-            final_classifiction(classification, delta_heights, ref n_contacts);
+            final_classifiction(classification, delta_heights);
 
             //Определеяем площадь "footprint" и длину его контура
             int contur = 0;
@@ -109,7 +117,7 @@ public class TerrainDefform : MonoBehaviour
 
             float[,] pressure = calc_pressure(delta_heights, contur, ploshad);
 
-            float[,] centrality_coef = calc_centrality_distr(delta_heights, n_contacts);
+            float[,] centrality_coef = calc_centrality_distr(delta_heights, nodes_coordinates.Count());
 
             float[,] final_pressure = calc_final_pressure(centrality_coef, pressure);
         }
@@ -159,7 +167,37 @@ public class TerrainDefform : MonoBehaviour
 
                 final_delta_buld[j, i] = delta_heights[j, i] * (chislitel_buld / znamenatel);
 
-                heights_ter[j, i] = heights_ter[j, i] - final_delta_sink[j, i] - final_delta_buld[j,i];
+                heights_ter[j, i] = heights_ter[j, i] - final_delta_sink[j, i] - final_delta_buld[j, i];
+            }
+        }
+
+        //Распределеяем вытесненный объем по границам, чтобы потом с помощью эрозии сгладить
+        float[] borders_volume_distr_sink = new float[borders_coordinates.Count()];
+        float[] borders_volume_distr_buld = new float[borders_coordinates.Count()];
+        for (int k = 0; k < borders_coordinates.Count(); k++)
+        {
+            for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
+            {
+                for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
+                {
+                    if (delta_heights[j, i] == 0)
+                        continue;
+
+                    float dist = (j - borders_coordinates[k].x) * (j - borders_coordinates[k].x) +
+                        (i - borders_coordinates[k].z) * (i - borders_coordinates[k].z) +
+                        (delta_heights[j, i] - borders_coordinates[k].y) * (delta_heights[j, i] - borders_coordinates[k].y);
+
+                    borders_volume_distr_sink[k] += final_delta_sink[j, i] * (1 / dist);
+
+                    /*float cosa = normMinCoords.x * normCurCoords.x +
+                    normCurCoords.y * normCurCoords.y +
+                    normCurCoords.z * normCurCoords.z;
+
+                    if (cosa > 0)
+                    {
+                        borders_volume_distr_buld[k] += Mathf.Pow(cosa, m) * final_delta_buld[j, i];
+                    }     */
+                }
             }
         }
 
@@ -183,7 +221,7 @@ public class TerrainDefform : MonoBehaviour
         return 1/dist;
     }
 
-    node_classification[,] detect_border(node_classification[,] nodes, float[,] delta_heights)
+    node_classification[,] detect_border(node_classification[,] nodes, float[,] delta_heights, ref List<Vector3> borders_coordinates)
     {
         //Определили границы
         for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
@@ -205,6 +243,7 @@ public class TerrainDefform : MonoBehaviour
                 else if ((left != 0 || right != 0 || up != 0 || down != 0) && (delta_heights[j, i] == 0))
                 {
                     nodes[j, i].border = true;
+                    borders_coordinates.Add(new Vector3(j, delta_heights[j, i], i));
                     //heights_ter[j, i] +=  0.005f; <---- оталдочная проверка корректности найденных границ
                 }
             }
@@ -213,7 +252,7 @@ public class TerrainDefform : MonoBehaviour
         return nodes;
     }
 
-    node_classification[,] final_classifiction(node_classification[,] nodes, float[,] delta_heights, ref int num_contacts)
+    node_classification[,] final_classifiction(node_classification[,] nodes, float[,] delta_heights)
     {
         //string path = Application.dataPath + "/classification.txt";
         //if (!File.Exists(path))
@@ -234,8 +273,6 @@ public class TerrainDefform : MonoBehaviour
                     //File.AppendAllText(path, nodes[j, i].cnt.ToString());
                     continue;
                 }
-
-                num_contacts++;
 
                 if (left != 0 && !nodes[j, i - 1].border)
                     nodes   [j, i].cnt++;
