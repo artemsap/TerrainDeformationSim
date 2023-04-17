@@ -21,6 +21,6 @@ Material:
     m_TexEnvs: []
     m_Floats:
     - _brushIntensity: -0.5
-    - _brushSize: 0.1
+    - _brushSize: 0.154
     m_Colors: []
   m_BuildTextureStacks: []
