@@ -16,5 +16,10 @@ public class TerrainDefformEditor : Editor
         {
             targ.DeformByIntersection();
         }
+
+        if (GUILayout.Button("Reset terrain"))
+        {
+            targ.ResetTerrain();
+        }
     }
 }
