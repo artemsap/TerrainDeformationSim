@@ -127,26 +127,32 @@ public class TerrainDefform : MonoBehaviour
         }
 
         Vector3[,] normal_vectors = new Vector3[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
-        for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
+        for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
         {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
+            for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
             {
                 if (delta_heights[j, i] == 0)
                     continue;
 
-                Vector3 point_a = new Vector3(j, heights_ter[j, i] * terrain.terrainData.heightmapScale.y, i);
-                Vector3 point_b = new Vector3(j + 1, heights_ter[j + 1, i] * terrain.terrainData.heightmapScale.y, i);
-                Vector3 point_c = new Vector3(j, heights_ter[j, i + 1] * terrain.terrainData.heightmapScale.y, i + 1);
+                Vector3[] normals = new Vector3[4];
 
-                Vector3 side_1 = point_b - point_a;
-                Vector3 side_2 = point_c - point_a;
+                Vector3 point_a = new Vector3(step_x * i, heights_ter[j, i] * terrain.terrainData.heightmapScale.y, step_z * j);
+                Vector3 point_b = new Vector3(step_x * (i + 1), heights_ter[j, i + 1] * terrain.terrainData.heightmapScale.y, step_z * j);
+                Vector3 point_c = new Vector3(step_x * i, heights_ter[j + 1, i] * terrain.terrainData.heightmapScale.y, step_z * (j + 1));
+                Vector3 point_d = new Vector3(step_x * i, heights_ter[j - 1, i] * terrain.terrainData.heightmapScale.y, step_z * (j - 1));
+                Vector3 point_e = new Vector3(step_x * (i - 1), heights_ter[j, i - 1] * terrain.terrainData.heightmapScale.y, step_z * j);
 
-                normal_vectors[j, i] = Vector3.Cross(side_1, side_2);
+                normals[0] = calc_vector(point_a, point_c, point_b);
+                normals[1] = calc_vector(point_a, point_e, point_c);
+                normals[2] = calc_vector(point_a, point_d, point_e);
+                normals[3] = calc_vector(point_a, point_b, point_d);
 
-                //float norm_length = normal_vectors[j, i].magnitude;
-                //normal_vectors[j, i] /= norm_length;
+                normal_vectors[j, i] = normals[0] + normals[1] + normals[2] + normals[3];
 
-                //Debug.DrawRay(new Vector3(step_x * i, heights_ter[j, i] * terrain.terrainData.heightmapScale.y, step_z * j), normal_vectors[j, i] * 5, Color.green, 10f);
+                float norm_length = normal_vectors[j, i].magnitude;
+                normal_vectors[j, i] /= norm_length;
+
+                Debug.DrawRay(new Vector3(step_x * i, heights_ter[j, i] * terrain.terrainData.heightmapScale.y, step_z * j), normal_vectors[j, i] * 5, Color.green, 10f);
             }
         }
 
@@ -192,50 +198,6 @@ public class TerrainDefform : MonoBehaviour
         float[] borders_volume_distr_sink = new float[borders_coordinates.Count()];
         float[] borders_volume_distr_buld = new float[borders_coordinates.Count()];
         double[] delta_height_border = new double[borders_coordinates.Count()];
-        /*for (int k = 0; k < borders_coordinates.Count(); k++)
-        {
-            delta_height_border[k] = 0;
-
-            int index_1 = (int)borders_coordinates[k].x;
-            int index_2 = (int)borders_coordinates[k].z;
-
-            for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
-            {
-                for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
-                {
-                    if (delta_heights[j, i] == 0)
-                        continue;
-
-                    double dist = (j - borders_coordinates[k].x) * (j - borders_coordinates[k].x) +
-                        (i - borders_coordinates[k].z) * (i - borders_coordinates[k].z) +
-                        (delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y) *
-                        (delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y);
-
-                    double distr_sink_coef = 1/ dist;
-                    delta_height_border[k] += distr_sink_coef * final_delta_sink[j, i];
-
-                    Vector3 vec_dist = new Vector3(j - borders_coordinates[k].x,
-                        delta_heights[j, i] - borders_coordinates[k].y,
-                        i - borders_coordinates[k].z);
-
-                    double cosa = (vec_dist.x * normal_vectors[j, i].x +
-                        vec_dist.y * normal_vectors[j, i].y +
-                        vec_dist.z * normal_vectors[j, i].z) /
-                        (vec_dist.magnitude * normal_vectors[j, i].magnitude);
-
-                    double distr_sink_buld = 0;
-                    if (cosa > 0)
-                    {
-                        distr_sink_buld = cosa * cosa * cosa * cosa * cosa;
-                    }
-
-                    //delta_height_border[k] += distr_sink_buld * final_delta_buld[j, i];
-                }
-            }
-
-            delta_heights_final[index_1, index_2] = (float)delta_height_border[k];
-            //heights_ter[index_1, index_2] += (float)delta_height_border[k];
-        }*/
 
         for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
         {
@@ -311,7 +273,7 @@ public class TerrainDefform : MonoBehaviour
          }*/
 
         //Здесь я буду делать алгоритм эрозии
-        float res = (terrain.terrainData.size.x / terrain.terrainData.heightmapResolution);
+        /*float res = (terrain.terrainData.size.x / terrain.terrainData.heightmapResolution);
         float dzlim = (res * Mathf.Tan(Mathf.Deg2Rad * fi)) / terrain.terrainData.heightmapScale.y;
 
         float[,] delta_erosion = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
@@ -339,7 +301,7 @@ public class TerrainDefform : MonoBehaviour
 
                 }
             }
-        }
+        }*/
 
         float correct_detection_final = 0;
         for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
@@ -355,6 +317,15 @@ public class TerrainDefform : MonoBehaviour
 
         terrain.terrainData.SetHeights(0, 0, heights_ter);
     }
+
+    Vector3 calc_vector(Vector3 a, Vector3 b, Vector3 c)
+    {
+        Vector3 side_1 = b - a;
+        Vector3 side_2 = c - a;
+
+        return Vector3.Cross(side_1, side_2);
+    }
+
     float calc_distance(Vector2 coords, float[,] delta_heights)
     {
         float dist = 0;
