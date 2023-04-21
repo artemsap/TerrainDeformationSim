@@ -14,7 +14,7 @@ public class TerrainDefformEditor : Editor
 
         if (GUILayout.Button("Detect intersection"))
         {
-            targ.DeformByIntersection();
+            targ.DeformByIntersection(targ.customVelocity);
         }
 
         if (GUILayout.Button("Reset terrain"))

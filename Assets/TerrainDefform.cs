@@ -32,6 +32,8 @@ public class TerrainDefform : MonoBehaviour
     public int fi = 45;
     public int num_erosion_iter = 5;
 
+    public Vector3 customVelocity;
+
     public Terrain terrain;
 
     Vector3 terrain_pos_global;
@@ -56,18 +58,32 @@ public class TerrainDefform : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        DeformByIntersection();
+        GameObject obj = collision.gameObject;
+        ObjectInformation objinfo = obj.GetComponent<ObjectInformation>();
+
+        DeformByIntersection(objinfo.ObjectVelocity);
         //DeformTerrainByObjects(collision);
     }
 
     private void OnCollisionStay(Collision collision)
     {
-        DeformByIntersection();
+        GameObject obj = collision.gameObject;
+        ObjectInformation objinfo = obj.GetComponent<ObjectInformation>();
+
+        DeformByIntersection(objinfo.ObjectVelocity);
         //DeformTerrainByObjects(collision);
     }
 
-    public void DeformByIntersection()
+    public void DeformByIntersection(Vector3 velocity)
     {
+        //костыль для корректного определения скорости со столкнувшимся объектом
+        float tmp = velocity.x;
+        velocity.x = velocity.z;
+        velocity.z = tmp;
+        velocity = -velocity;
+
+        velocity /= velocity.magnitude;
+
         var heights_ter = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
         float[,] delta_heights = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
         float[,] delta_heights_final = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
@@ -127,7 +143,7 @@ public class TerrainDefform : MonoBehaviour
         }
 
         Vector3[,] normal_vectors = new Vector3[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
-        for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
+        /*for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
         {
             for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
             {
@@ -154,7 +170,7 @@ public class TerrainDefform : MonoBehaviour
 
                 Debug.DrawRay(new Vector3(step_x * i, heights_ter[j, i] * terrain.terrainData.heightmapScale.y, step_z * j), normal_vectors[j, i] * 5, Color.green, 10f);
             }
-        }
+        }*/
 
         float[,] final_delta_sink = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
         float[,] final_delta_buld = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
@@ -165,21 +181,19 @@ public class TerrainDefform : MonoBehaviour
                 if (delta_heights[j, i] == 0)
                     continue;
 
-                float chislitel = normal_vectors[j, i].y * normal_vectors[j, i].y;
-                float znamenatel = normal_vectors[j, i].x * normal_vectors[j, i].x + 
-                    normal_vectors[j, i].y * normal_vectors[j, i].y + 
-                    normal_vectors[j, i].z * normal_vectors[j, i].z;
+                float chislitel = velocity.y * velocity.y;
+                float znamenatel = velocity.x * velocity.x +
+                    velocity.y * velocity.y +
+                    velocity.z * velocity.z;
 
                 final_delta_sink[j, i] = delta_heights[j, i] * (chislitel / znamenatel);
 
-                float chislitel_buld = normal_vectors[j, i].x * normal_vectors[j, i].x +
-                    normal_vectors[j, i].z * normal_vectors[j, i].z;
+                float chislitel_buld = velocity.x * velocity.x +
+                    velocity.z * velocity.z;
 
                 final_delta_buld[j, i] = delta_heights[j, i] * (chislitel_buld / znamenatel);
 
-
-                delta_heights_final[j, i] = -final_delta_sink[j, i];// - final_delta_buld[j, i];
-                //heights_ter[j, i] = heights_ter[j, i] - final_delta_sink[j, i] - final_delta_buld[j, i];
+                delta_heights_final[j, i] = -final_delta_sink[j, i] - final_delta_buld[j, i];
             }
         }
 
@@ -212,7 +226,7 @@ public class TerrainDefform : MonoBehaviour
                 double summ_dist = 0;
                 for (int k = 0; k < borders_coordinates.Count(); k++)
                 {
-                    dist[k] = (step_x * j - step_x*borders_coordinates[k].x) * (step_x * j - step_x * borders_coordinates[k].x) +
+                    dist[k] = (step_z * j - step_x*borders_coordinates[k].x) * (step_z * j - step_x * borders_coordinates[k].x) +
                               (step_x * i - step_x*borders_coordinates[k].z) * (step_x * i - step_x * borders_coordinates[k].z) +
                               (delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y) *
                               (delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y);
@@ -222,18 +236,18 @@ public class TerrainDefform : MonoBehaviour
 
                 for (int k = 0; k < borders_coordinates.Count(); k++)
                 {
-                    double distr_sink_coef = dist[k] / summ_dist;
+                    double distr_sink_coef = 1 / dist[k];
                     coef_check += distr_sink_coef;
                     delta_height_border[k] += distr_sink_coef * final_delta_sink[j, i];
 
-                    Vector3 vec_dist = new Vector3(j - borders_coordinates[k].x,
-                                       delta_heights[j, i] - borders_coordinates[k].y,
-                                       i - borders_coordinates[k].z);
+                    Vector3 vec_dist = new Vector3(step_z * j - step_z * borders_coordinates[k].x,
+                                       delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y,
+                                       step_z * i - step_z * borders_coordinates[k].z);
 
-                    double cosa = (vec_dist.x * normal_vectors[j, i].x +
-                        vec_dist.y * normal_vectors[j, i].y +
-                        vec_dist.z * normal_vectors[j, i].z) /
-                        (vec_dist.magnitude * normal_vectors[j, i].magnitude);
+                    double cosa = (vec_dist.x * velocity.x +
+                        vec_dist.y * velocity.y +
+                        vec_dist.z * velocity.z) /
+                        (vec_dist.magnitude * velocity.magnitude);
 
                     double distr_sink_buld = 0;
                     if (cosa > 0)
