@@ -84,6 +84,9 @@ public class TerrainDefform : MonoBehaviour
 
     public void DeformByIntersection(Vector3 velocity)
     {
+        if (velocity.x == 0 && velocity.y == 0 && velocity.z == 0)
+            return;
+
         //костыль для корректного определения скорости со столкнувшимся объектом
         float tmp = velocity.x;
         velocity.x = velocity.z;
@@ -126,6 +129,9 @@ public class TerrainDefform : MonoBehaviour
                         2);*/
 
                     delta_heights[j, i] = (heights_ter[j, i] * terrain.terrainData.heightmapScale.y - hit.distance) / terrain.terrainData.heightmapScale.y;
+                    if (delta_heights[j, i] == 0)
+                        continue;
+
                     nodes_coordinates.Add(new Vector3(j, delta_heights[j, i], i));
                     //heights_ter[j, i] = heights_ter[j, i] - delta_heights[j, i];
                 }
@@ -164,6 +170,9 @@ public class TerrainDefform : MonoBehaviour
                     velocity.y * velocity.y +
                     velocity.z * velocity.z;
 
+                if (znamenatel == 0)
+                    continue;
+
                 final_delta_sink[j, i] = delta_heights[j, i] * (chislitel / znamenatel);
 
                 float chislitel_buld = velocity.x * velocity.x +
@@ -171,11 +180,13 @@ public class TerrainDefform : MonoBehaviour
 
                 final_delta_buld[j, i] = delta_heights[j, i] * (chislitel_buld / znamenatel);
 
+                print("delta buld = " + final_delta_buld[j, i] + " delty sink = " + final_delta_sink[j, i]);
+
                 delta_heights_final[j, i] = -final_delta_sink[j, i] - final_delta_buld[j, i];
             }
         }
 
-        float correct_detection2 = 0;
+        /*float correct_detection2 = 0;
         for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
         {
             for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
@@ -184,9 +195,9 @@ public class TerrainDefform : MonoBehaviour
             }
         }
 
-        print("Correct detection before sinkage distr= " + correct_detection2);
+        print("Correct detection before sinkage distr= " + correct_detection2);*/
 
-        //Распределеяем вытесненный объем по границам, чтобы потом с помощью эрозии сгладить 
+        /*//Распределеяем вытесненный объем по границам, чтобы потом с помощью эрозии сгладить 
         float[] borders_volume_distr_sink = new float[borders_coordinates.Count()];
         float[] borders_volume_distr_buld = new float[borders_coordinates.Count()];
         double[] delta_height_border = new double[borders_coordinates.Count()];
@@ -247,9 +258,9 @@ public class TerrainDefform : MonoBehaviour
         for (int k = 0; k < borders_coordinates.Count(); k++)
         {
             delta_heights_final[(int)borders_coordinates[k].x, (int)borders_coordinates[k].z] = (float)delta_height_border[k];
-        }
+        }*/
 
-        float correct_detection1 = 0;
+        /*float correct_detection1 = 0;
         for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
         {
             for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
@@ -258,10 +269,10 @@ public class TerrainDefform : MonoBehaviour
             }
         }
     
-        print("Correct detection after sinkage distr= " + correct_detection1);
+        print("Correct detection after sinkage distr= " + correct_detection1);*/
 
         //Здесь я буду делать алгоритм эрозии
-        float res = (terrain.terrainData.size.x / terrain.terrainData.heightmapResolution);
+        /*float res = (terrain.terrainData.size.x / terrain.terrainData.heightmapResolution);
         float dzlim = (res * Mathf.Tan(Mathf.Deg2Rad * fi)) / terrain.terrainData.heightmapScale.y;
 
         float[,] delta_erosion = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
@@ -271,6 +282,9 @@ public class TerrainDefform : MonoBehaviour
             {
                 for (int j = matrix_erosion_size/2; j < terrain.terrainData.heightmapResolution - matrix_erosion_size/2; j++)
                 {
+                    if (delta_heights_final[j, i] == 0)
+                        continue;
+
                     bool find = FindVector(new Vector3(j, delta_heights[j, i], i), nodes_coordinates);
 
                     if (find)
@@ -319,7 +333,7 @@ public class TerrainDefform : MonoBehaviour
                     }
                 }
             }
-        }
+        }*/
 
         coef_correctness = 0.0f;
         float correct_detection_final = 0;
@@ -329,11 +343,11 @@ public class TerrainDefform : MonoBehaviour
             {
                 correct_detection_final += delta_heights_final[j, i];
                 heights_ter[j, i] += delta_heights_final[j, i];
-                coef_correctness += heights_ter[j, i] - default_height[j, i];
+                coef_correctness += (heights_ter[j, i] - default_height[j, i]) * terrain.terrainData.heightmapScale.y;
             }
         }
 
-        print("Correct detection final= " + correct_detection_final);
+        //print("Correct detection final= " + correct_detection_final);
 
         terrain.terrainData.SetHeights(0, 0, heights_ter);
     }
