@@ -150,36 +150,6 @@ public class TerrainDefform : MonoBehaviour
             float[,] final_pressure = calc_final_pressure(centrality_coef, pressure);
         }
 
-        Vector3[,] normal_vectors = new Vector3[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
-        /*for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
-        {
-            for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
-            {
-                if (delta_heights[j, i] == 0)
-                    continue;
-
-                Vector3[] normals = new Vector3[4];
-
-                Vector3 point_a = new Vector3(step_x * i, heights_ter[j, i] * terrain.terrainData.heightmapScale.y, step_z * j);
-                Vector3 point_b = new Vector3(step_x * (i + 1), heights_ter[j, i + 1] * terrain.terrainData.heightmapScale.y, step_z * j);
-                Vector3 point_c = new Vector3(step_x * i, heights_ter[j + 1, i] * terrain.terrainData.heightmapScale.y, step_z * (j + 1));
-                Vector3 point_d = new Vector3(step_x * i, heights_ter[j - 1, i] * terrain.terrainData.heightmapScale.y, step_z * (j - 1));
-                Vector3 point_e = new Vector3(step_x * (i - 1), heights_ter[j, i - 1] * terrain.terrainData.heightmapScale.y, step_z * j);
-
-                normals[0] = calc_vector(point_a, point_c, point_b);
-                normals[1] = calc_vector(point_a, point_e, point_c);
-                normals[2] = calc_vector(point_a, point_d, point_e);
-                normals[3] = calc_vector(point_a, point_b, point_d);
-
-                normal_vectors[j, i] = normals[0] + normals[1] + normals[2] + normals[3];
-
-                float norm_length = normal_vectors[j, i].magnitude;
-                normal_vectors[j, i] /= norm_length;
-
-                Debug.DrawRay(new Vector3(step_x * i, heights_ter[j, i] * terrain.terrainData.heightmapScale.y, step_z * j), normal_vectors[j, i] * 5, Color.green, 10f);
-            }
-        }*/
-
         float[,] final_delta_sink = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
         float[,] final_delta_buld = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
         for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
