@@ -21,5 +21,10 @@ public class TerrainDefformEditor : Editor
         {
             targ.ResetTerrain();
         }
+
+        if(GUILayout.Button("Read default height"))
+        {
+            targ.ReadDefaultHeight();
+        }
     }
 }

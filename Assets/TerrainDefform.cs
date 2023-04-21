@@ -36,6 +36,8 @@ public class TerrainDefform : MonoBehaviour
 
     public Terrain terrain;
 
+    public float coef_correctness = 0.0f;
+
     Vector3 terrain_pos_global;
     float[,] default_height;
 
@@ -48,12 +50,18 @@ public class TerrainDefform : MonoBehaviour
         terrain_pos_global = terrain.GetComponent<Transform>().position;
         terrain_pos_global.x += terrain.terrainData.size.x / 2;
         terrain_pos_global.z += terrain.terrainData.size.z / 2;
+        ReadDefaultHeight();
+    }
+
+    public void ReadDefaultHeight()
+    {
         default_height = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
     }
 
     void OnApplicationQuit()
     {
         terrain.terrainData.SetHeights(0, 0, default_height);
+        coef_correctness = 0;
     }    
 
     private void OnCollisionEnter(Collision collision)
@@ -208,7 +216,7 @@ public class TerrainDefform : MonoBehaviour
 
         print("Correct detection before sinkage distr= " + correct_detection2);
 
-        //Распределеяем вытесненный объем по границам, чтобы потом с помощью эрозии сгладить
+        //Распределеяем вытесненный объем по границам, чтобы потом с помощью эрозии сгладить 
         float[] borders_volume_distr_sink = new float[borders_coordinates.Count()];
         float[] borders_volume_distr_buld = new float[borders_coordinates.Count()];
         double[] delta_height_border = new double[borders_coordinates.Count()];
@@ -221,41 +229,47 @@ public class TerrainDefform : MonoBehaviour
                     continue;
 
                 double coef_check = 0;
+                double coef_check_1 = 0;
 
                 double[] dist = new double[borders_coordinates.Count()];
+                double[] distr_sink_buld = new double[borders_coordinates.Count()];
                 double summ_dist = 0;
+                double summ_distr_sink_buld = 0;
                 for (int k = 0; k < borders_coordinates.Count(); k++)
                 {
                     dist[k] = (step_z * j - step_x*borders_coordinates[k].x) * (step_z * j - step_x * borders_coordinates[k].x) +
                               (step_x * i - step_x*borders_coordinates[k].z) * (step_x * i - step_x * borders_coordinates[k].z) +
                               (delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y) *
                               (delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y);
-
                     summ_dist += dist[k];
-                }
-
-                for (int k = 0; k < borders_coordinates.Count(); k++)
-                {
-                    double distr_sink_coef = 1 / dist[k];
-                    coef_check += distr_sink_coef;
-                    delta_height_border[k] += distr_sink_coef * final_delta_sink[j, i];
 
                     Vector3 vec_dist = new Vector3(step_z * j - step_z * borders_coordinates[k].x,
-                                       delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y,
-                                       step_z * i - step_z * borders_coordinates[k].z);
+                    delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y,
+                    step_z * i - step_z * borders_coordinates[k].z);
 
                     double cosa = (vec_dist.x * velocity.x +
                         vec_dist.y * velocity.y +
                         vec_dist.z * velocity.z) /
                         (vec_dist.magnitude * velocity.magnitude);
 
-                    double distr_sink_buld = 0;
+                    distr_sink_buld[k] = 0;
                     if (cosa > 0)
                     {
-                        distr_sink_buld = cosa * cosa * cosa * cosa * cosa;
+                        distr_sink_buld[k] = cosa;
                     }
 
-                    //delta_height_border[k] += distr_sink_buld * final_delta_buld[j, i];
+                    summ_distr_sink_buld += distr_sink_buld[k];
+                }
+
+                for (int k = 0; k < borders_coordinates.Count(); k++)
+                {
+                    double distr_sink_coef = dist[k] / summ_dist;//1 / dist[k];
+                    coef_check += distr_sink_coef;
+                    delta_height_border[k] += distr_sink_coef * final_delta_sink[j, i];
+
+                    double distr_sink_buld_fin = distr_sink_buld[k]/ summ_distr_sink_buld;
+                    coef_check_1 += distr_sink_buld_fin;
+                    delta_height_border[k] += distr_sink_buld_fin * final_delta_buld[j, i];
                 }
             }
         }
@@ -317,6 +331,7 @@ public class TerrainDefform : MonoBehaviour
             }
         }*/
 
+        coef_correctness = 0.0f;
         float correct_detection_final = 0;
         for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
         {
@@ -324,6 +339,7 @@ public class TerrainDefform : MonoBehaviour
             {
                 correct_detection_final += delta_heights_final[j, i];
                 heights_ter[j, i] += delta_heights_final[j, i];
+                coef_correctness += heights_ter[j, i] - default_height[j, i];
             }
         }
 
@@ -588,6 +604,7 @@ public class TerrainDefform : MonoBehaviour
     public void ResetTerrain()
     {
         terrain.terrainData.SetHeights(0, 0, default_height);
+        coef_correctness = 0;
     }
     
 }
