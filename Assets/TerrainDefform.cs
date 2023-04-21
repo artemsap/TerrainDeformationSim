@@ -197,7 +197,7 @@ public class TerrainDefform : MonoBehaviour
 
         print("Correct detection before sinkage distr= " + correct_detection2);*/
 
-        /*//Распределеяем вытесненный объем по границам, чтобы потом с помощью эрозии сгладить 
+        //Распределеяем вытесненный объем по границам, чтобы потом с помощью эрозии сгладить 
         float[] borders_volume_distr_sink = new float[borders_coordinates.Count()];
         float[] borders_volume_distr_buld = new float[borders_coordinates.Count()];
         double[] delta_height_border = new double[borders_coordinates.Count()];
@@ -258,7 +258,7 @@ public class TerrainDefform : MonoBehaviour
         for (int k = 0; k < borders_coordinates.Count(); k++)
         {
             delta_heights_final[(int)borders_coordinates[k].x, (int)borders_coordinates[k].z] = (float)delta_height_border[k];
-        }*/
+        }
 
         /*float correct_detection1 = 0;
         for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
@@ -272,7 +272,7 @@ public class TerrainDefform : MonoBehaviour
         print("Correct detection after sinkage distr= " + correct_detection1);*/
 
         //Здесь я буду делать алгоритм эрозии
-        /*float res = (terrain.terrainData.size.x / terrain.terrainData.heightmapResolution);
+        float res = (terrain.terrainData.size.x / terrain.terrainData.heightmapResolution);
         float dzlim = (res * Mathf.Tan(Mathf.Deg2Rad * fi)) / terrain.terrainData.heightmapScale.y;
 
         float[,] delta_erosion = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
@@ -333,7 +333,7 @@ public class TerrainDefform : MonoBehaviour
                     }
                 }
             }
-        }*/
+        }
 
         coef_correctness = 0.0f;
         float correct_detection_final = 0;
