@@ -218,6 +218,11 @@ MonoBehaviour:
   Kc: 2370
   Kf: 60300
   n: 0.63
+  m: 1
+  fi: 30
+  num_erosion_iter: 30
+  customVelocity: {x: 0, y: 0, z: 0}
+  terrain: {fileID: 216397}
 --- !u!1 &223876823
 GameObject:
   m_ObjectHideFlags: 0
@@ -315,6 +320,7 @@ GameObject:
   - component: {fileID: 573767155}
   - component: {fileID: 573767159}
   - component: {fileID: 573767160}
+  - component: {fileID: 573767161}
   m_Layer: 0
   m_Name: Sphere
   m_TagString: Untagged
@@ -392,8 +398,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 573767154}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 36.95, y: 77.3, z: 24.44}
-  m_LocalScale: {x: 10.634847, y: 10.634847, z: 10.634847}
+  m_LocalPosition: {x: 43.47, y: 77, z: 25}
+  m_LocalScale: {x: 10, y: 10, z: 10}
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 3
@@ -433,6 +439,19 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 126
   m_CollisionDetection: 0
+--- !u!114 &573767161
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 573767154}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1c5762e87c79c5b46b1980b582a44312, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ObjectVelocity: {x: 0, y: 0, z: 0}
 --- !u!1 &1840779347
 GameObject:
   m_ObjectHideFlags: 0
