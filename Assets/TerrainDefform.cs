@@ -94,47 +94,11 @@ public class TerrainDefform : MonoBehaviour
         velocity /= velocity.magnitude;
 
         var heights_ter = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
-        float[,] delta_heights = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
         float[,] delta_heights_final = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
-        node_classification[,] classification = new node_classification[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
 
         List<Vector3> nodes_coordinates = new List<Vector3>();
-        List<Vector3> borders_coordinates = new List<Vector3>();
 
-        Vector3 start = terrain.GetComponent<Transform>().position;
-        Vector3 end = terrain.GetComponent<Transform>().position + new Vector3(terrain.terrainData.size.x, 0, terrain.terrainData.size.z);
-
-        float step_x = (float)((end.x - start.x) / (terrain.terrainData.heightmapResolution - 1));
-        float step_z = (float)((end.z - start.z) / (terrain.terrainData.heightmapResolution - 1));
-
-        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
-        {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
-            {
-                delta_heights[j, i] = 0;
-                delta_heights_final[j, i] = 0;
-
-                //Vector3 upDist = transform.TransformDirection(Vector3.up) * default_height[j, i] * terrain.terrainData.heightmapScale.y;
-                RaycastHit hit;
-                if (Physics.Raycast(new Vector3(step_x * i, 0, step_z * j),
-                    transform.TransformDirection(Vector3.up),
-                    out hit,
-                    heights_ter[j, i] * terrain.terrainData.heightmapScale.y))
-                {
-                    /*Debug.DrawRay(new Vector3(step_x * i, 0, step_z * j), 
-                        transform.TransformDirection(Vector3.up) * hit.distance, 
-                        Color.green, 
-                        2);*/
-
-                    delta_heights[j, i] = (heights_ter[j, i] * terrain.terrainData.heightmapScale.y - hit.distance) / terrain.terrainData.heightmapScale.y;
-                    if (delta_heights[j, i] == 0)
-                        continue;
-
-                    nodes_coordinates.Add(new Vector3(j, delta_heights[j, i], i));
-                    //heights_ter[j, i] = heights_ter[j, i] - delta_heights[j, i];
-                }
-            }
-        }
+        float[,] delta_heights = DetectIntersection(ref nodes_coordinates, heights_ter);
 
         float[,] final_delta_sink = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
         float[,] final_delta_buld = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
@@ -145,18 +109,14 @@ public class TerrainDefform : MonoBehaviour
         ErosionAlgorithm(ref delta_heights_final, delta_heights, nodes_coordinates);
 
         coef_correctness = 0.0f;
-        float correct_detection_final = 0;
         for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
         {
             for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
             {
-                correct_detection_final += delta_heights_final[j, i];
                 heights_ter[j, i] += delta_heights_final[j, i];
                 coef_correctness += (heights_ter[j, i] - default_height[j, i]);
             }
         }
-
-        //print("Correct detection final= " + correct_detection_final);
 
         terrain.terrainData.SetHeights(0, 0, heights_ter);
     }
@@ -361,6 +321,44 @@ public class TerrainDefform : MonoBehaviour
     {
         terrain.terrainData.SetHeights(0, 0, default_height);
         coef_correctness = 0;
+    }
+
+    float[,] DetectIntersection(ref List<Vector3> nodes_coordinates, float[,] heights_ter)
+    {
+        float[,] delta_heights = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+        Vector3 start = terrain.GetComponent<Transform>().position;
+        Vector3 end = terrain.GetComponent<Transform>().position + new Vector3(terrain.terrainData.size.x, 0, terrain.terrainData.size.z);
+
+        float step_x = (float)((end.x - start.x) / (terrain.terrainData.heightmapResolution - 1));
+        float step_z = (float)((end.z - start.z) / (terrain.terrainData.heightmapResolution - 1));
+
+        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
+        {
+            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
+            {
+                delta_heights[j, i] = 0;
+
+                //Vector3 upDist = transform.TransformDirection(Vector3.up) * default_height[j, i] * terrain.terrainData.heightmapScale.y;
+                RaycastHit hit;
+                if (Physics.Raycast(new Vector3(step_x * i, 0, step_z * j),
+                    transform.TransformDirection(Vector3.up),
+                    out hit,
+                    heights_ter[j, i] * terrain.terrainData.heightmapScale.y))
+                {
+                    /*Debug.DrawRay(new Vector3(step_x * i, 0, step_z * j), 
+                        transform.TransformDirection(Vector3.up) * hit.distance, 
+                        Color.green, 
+                        2);*/
+
+                    delta_heights[j, i] = (heights_ter[j, i] * terrain.terrainData.heightmapScale.y - hit.distance) / terrain.terrainData.heightmapScale.y;
+                    if (delta_heights[j, i] == 0)
+                        continue;
+
+                    nodes_coordinates.Add(new Vector3(j, delta_heights[j, i], i));
+                }
+            }
+        }
+        return delta_heights;
     }
 
     void BaseDeform(ref float[,] delta_heights_final, ref float[,] final_delta_sink, ref float[,] final_delta_buld, Vector3 Velocity, float[,] delta_heights)
