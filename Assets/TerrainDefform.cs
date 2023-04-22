@@ -10,11 +10,27 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using static UnityEditor.Progress;
 using Unity.Profiling;
 using System.Linq;
+using System.Threading;
+using Assembly_CSharp;
 
 struct node_classification
 {
     public bool border;
     public int cnt;
+}
+
+struct conctact_info
+{
+    public Vector3 velocity;
+    public float[,] deltas;
+    public List<Vector3> node_contact;
+
+    public conctact_info(Vector3 _velocity, float[,] _deltas, List<Vector3> _node_contact)
+    {
+        velocity= _velocity;
+        deltas= _deltas;
+        node_contact= _node_contact;
+    }
 }
 
 public class TerrainDefform : MonoBehaviour
@@ -40,6 +56,19 @@ public class TerrainDefform : MonoBehaviour
 
     Vector3 terrain_pos_global;
     float[,] default_height;
+    float[,] heights_ter;
+    bool needUpdateTerrain;
+    public int terrain_size;
+    public float size_x;
+    public float size_z;
+    public Vector3 ter_position;
+    public float scale_y;
+
+    List<conctact_info> contact_lst;
+
+    float[,] delta_heights_final;
+
+    Thread algThread;
 
     // Start is called before the first frame update
     void Start()
@@ -50,7 +79,19 @@ public class TerrainDefform : MonoBehaviour
         terrain_pos_global = terrain.GetComponent<Transform>().position;
         terrain_pos_global.x += terrain.terrainData.size.x / 2;
         terrain_pos_global.z += terrain.terrainData.size.z / 2;
+        ter_position = terrain.GetComponent<Transform>().position;
+        size_x = terrain.terrainData.size.x;
+        size_z = terrain.terrainData.size.z;
+        scale_y = terrain.terrainData.heightmapScale.y;
         ReadDefaultHeight();
+        needUpdateTerrain = false;
+        terrain_size = terrain.terrainData.heightmapResolution;
+        contact_lst = new List<conctact_info>();
+
+        delta_heights_final = new float[terrain_size, terrain_size];
+
+        algThread = new Thread(new ThreadStart(AlgorithmThread));
+        algThread.Start();
     }
 
     public void ReadDefaultHeight()
@@ -62,6 +103,7 @@ public class TerrainDefform : MonoBehaviour
     {
         terrain.terrainData.SetHeights(0, 0, default_height);
         coef_correctness = 0;
+        algThread.Abort();
     }    
 
     private void OnCollisionEnter(Collision collision)
@@ -70,6 +112,7 @@ public class TerrainDefform : MonoBehaviour
         ObjectInformation objinfo = obj.GetComponent<ObjectInformation>();
 
         DeformByIntersection(objinfo.ObjectVelocity);
+        //DeformByIntersectionV2(objinfo.ObjectVelocity);
     }
 
     private void OnCollisionStay(Collision collision)
@@ -78,11 +121,96 @@ public class TerrainDefform : MonoBehaviour
         ObjectInformation objinfo = obj.GetComponent<ObjectInformation>();
 
         DeformByIntersection(objinfo.ObjectVelocity);
+        //DeformByIntersectionV2(objinfo.ObjectVelocity);
     }
 
-    public void DeformByIntersection(Vector3 velocity)
+    private void Update()
     {
-        if (velocity.x == 0 && velocity.y == 0 && velocity.z == 0)
+        if (needUpdateTerrain)
+        {
+            float[,] heights_ter = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
+
+            coef_correctness = 0.0f;
+            for (int i = 1; i < terrain_size - 1; i++)
+            {
+                for (int j = 1; j < terrain_size - 1; j++)
+                {
+                    if (delta_heights_final[j, i] == 0)
+                        continue;
+
+                    heights_ter[j, i] += delta_heights_final[j, i];
+                    coef_correctness += (heights_ter[j, i] - default_height[j, i]);
+                }
+            }
+
+            terrain.terrainData.SetHeights(0, 0, heights_ter);
+            needUpdateTerrain = false;
+        }
+    }
+    
+    public void AlgorithmThread()
+    {
+        while (true)
+        {
+            if (contact_lst.Count == 0)
+            {
+                Thread.Sleep(1);
+                continue;
+            }
+
+            Thread.Sleep(20);
+
+            int count = contact_lst.Count;
+
+            float[,] delta_heights = new float[terrain_size, terrain_size];
+            List<Vector3> node_contact = new List<Vector3>();
+            Vector3 velocity = contact_lst[0].velocity;
+
+            for (int k = 0; k < count; k++)
+            {
+                for (int i = 0; i< contact_lst[k].node_contact.Count; i++)
+                {
+                    int index_1 = (int)contact_lst[k].node_contact[i].x;
+                    int index_2 = (int)contact_lst[k].node_contact[i].z;
+
+                    if (delta_heights[index_1, index_2] == contact_lst[k].node_contact[i].y)
+                        continue;
+
+                    if (delta_heights[index_1, index_2] == 0)
+                        delta_heights[index_1, index_2] = contact_lst[k].node_contact[i].y;
+
+                    if (delta_heights[index_1, index_2] > contact_lst[k].node_contact[i].y)
+                        delta_heights[index_1, index_2] = contact_lst[k].node_contact[i].y;
+                }    
+
+                for (int i = 0; i < terrain_size; i++)
+                {
+                    for (int j = 0; j < terrain_size; j++)
+                    {
+                        delta_heights_final[j, i] = 0;
+
+                        if (contact_lst[k].deltas[j, i] == 0)
+                            continue;
+
+                        node_contact.Add(new Vector3(j, delta_heights[j, i], i));
+                    }
+                }
+            }
+            contact_lst.Clear();
+
+            BaseDeform(ref delta_heights_final, out var final_delta_sink, out var final_delta_buld, velocity, in delta_heights);
+
+            VolumeDistibution(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, velocity);
+
+            ErosionAlgorithm(ref delta_heights_final, in delta_heights, in node_contact);
+
+            needUpdateTerrain = true;
+        }
+    }
+
+    public void DeformByIntersectionV2(Vector3 velocity)
+    {
+        if ((velocity.x == 0 && velocity.y == 0 && velocity.z == 0) || velocity.y > 0)
             return;
 
         //костыль для корректного определения скорости со столкнувшимся объектом
@@ -93,20 +221,39 @@ public class TerrainDefform : MonoBehaviour
 
         velocity /= velocity.magnitude;
 
-        var heights_ter = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
+        float[,] heights_ter = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
+
+        float[,] delta_heights = DetectIntersection(out var nodes_coordinates, heights_ter);
+
+        if (nodes_coordinates.Count == 0)
+            return;
+
+        contact_lst.Add(new conctact_info(velocity, delta_heights, nodes_coordinates));
+    }
+
+    public void DeformByIntersection(Vector3 velocity)
+    {
+        if (velocity.x == 0 && velocity.y == 0 && velocity.z == 0 || velocity.y > 0)
+            return;
+
+        //костыль для корректного определения скорости со столкнувшимся объектом
+        float tmp = velocity.x;
+        velocity.x = velocity.z;
+        velocity.z = tmp;
+        velocity = -velocity;
+
+        velocity /= velocity.magnitude;
+
+        heights_ter = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
         float[,] delta_heights_final = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
 
-        List<Vector3> nodes_coordinates = new List<Vector3>();
+        float[,] delta_heights = DetectIntersection(out var nodes_coordinates, heights_ter);
 
-        float[,] delta_heights = DetectIntersection(ref nodes_coordinates, heights_ter);
+        BaseDeform(ref delta_heights_final, out var final_delta_sink, out var final_delta_buld, velocity, in delta_heights);
 
-        float[,] final_delta_sink = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
-        float[,] final_delta_buld = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
-        BaseDeform(ref delta_heights_final, ref final_delta_sink, ref final_delta_buld, velocity, delta_heights);
+        VolumeDistibution(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, velocity);
 
-        VolumeDistibution(ref delta_heights_final, delta_heights, final_delta_sink, final_delta_buld, velocity);
-
-        ErosionAlgorithm(ref delta_heights_final, delta_heights, nodes_coordinates);
+        ErosionAlgorithm(ref delta_heights_final, in delta_heights, in nodes_coordinates);
 
         coef_correctness = 0.0f;
         for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
@@ -118,6 +265,7 @@ public class TerrainDefform : MonoBehaviour
             }
         }
 
+        //needUpdateTerrain = true;
         terrain.terrainData.SetHeights(0, 0, heights_ter);
     }
 
@@ -165,9 +313,9 @@ public class TerrainDefform : MonoBehaviour
     node_classification[,] detect_border(node_classification[,] nodes, float[,] delta_heights, ref List<Vector3> borders_coordinates)
     {
         //Определили границы
-        for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
+        for (int i = 1; i < terrain_size - 1; i++)
         {
-            for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
+            for (int j = 1; j < terrain_size - 1; j++)
             {
                 nodes[j, i].cnt = 0;
                 nodes[j, i].border = false;
@@ -228,7 +376,6 @@ public class TerrainDefform : MonoBehaviour
             }
             //File.AppendAllText(path, "\n");
         }
-
 
         return nodes;
     }
@@ -323,8 +470,10 @@ public class TerrainDefform : MonoBehaviour
         coef_correctness = 0;
     }
 
-    float[,] DetectIntersection(ref List<Vector3> nodes_coordinates, float[,] heights_ter)
+    float[,] DetectIntersection(out List<Vector3> nodes_coordinates, float[,] heights_ter)
     {
+        nodes_coordinates = new List<Vector3>();
+
         float[,] delta_heights = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
         Vector3 start = terrain.GetComponent<Transform>().position;
         Vector3 end = terrain.GetComponent<Transform>().position + new Vector3(terrain.terrainData.size.x, 0, terrain.terrainData.size.z);
@@ -361,11 +510,14 @@ public class TerrainDefform : MonoBehaviour
         return delta_heights;
     }
 
-    void BaseDeform(ref float[,] delta_heights_final, ref float[,] final_delta_sink, ref float[,] final_delta_buld, Vector3 Velocity, float[,] delta_heights)
+    void BaseDeform(ref float[,] delta_heights_final, out float[,] final_delta_sink, out float[,] final_delta_buld, Vector3 Velocity,in float[,] delta_heights)
     {
-        for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
+        final_delta_sink = new float[terrain_size, terrain_size];
+        final_delta_buld = new float[terrain_size, terrain_size];
+
+        for (int i = 0; i < terrain_size - 1; i++)
         {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
+            for (int j = 0; j < terrain_size - 1; j++)
             {
                 if (delta_heights[j, i] == 0)
                     continue;
@@ -389,15 +541,15 @@ public class TerrainDefform : MonoBehaviour
         }
     }
 
-    void VolumeDistibution(ref float[,] delta_heights_final, float[,] delta_heights, float[,] final_delta_sink, float[,] final_delta_buld, Vector3 Velocity)
+    void VolumeDistibution(ref float[,] delta_heights_final, in float[,] delta_heights, in float[,] final_delta_sink, in float[,] final_delta_buld, Vector3 Velocity)
     {
-        Vector3 start = terrain.GetComponent<Transform>().position;
-        Vector3 end = terrain.GetComponent<Transform>().position + new Vector3(terrain.terrainData.size.x, 0, terrain.terrainData.size.z);
+        Vector3 start = ter_position;
+        Vector3 end = ter_position + new Vector3(size_x, 0, size_z);
 
-        float step_x = (float)((end.x - start.x) / (terrain.terrainData.heightmapResolution - 1));
-        float step_z = (float)((end.z - start.z) / (terrain.terrainData.heightmapResolution - 1));
+        float step_x = (float)((end.x - start.x) / (terrain_size - 1));
+        float step_z = (float)((end.z - start.z) / (terrain_size - 1));
 
-        node_classification[,] classification = new node_classification[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+        node_classification[,] classification = new node_classification[terrain_size, terrain_size];
         List<Vector3> borders_coordinates = new List<Vector3>();
         classification = detect_border(classification, delta_heights, ref borders_coordinates);
 
@@ -406,9 +558,9 @@ public class TerrainDefform : MonoBehaviour
         float[] borders_volume_distr_buld = new float[borders_coordinates.Count()];
         double[] delta_height_border = new double[borders_coordinates.Count()];
 
-        for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
+        for (int i = 0; i < terrain_size - 1; i++)
         {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
+            for (int j = 0; j < terrain_size - 1; j++)
             {
                 if (delta_heights[j, i] == 0)
                     continue;
@@ -424,12 +576,12 @@ public class TerrainDefform : MonoBehaviour
                 {
                     dist[k] = (step_z * j - step_x * borders_coordinates[k].x) * (step_z * j - step_x * borders_coordinates[k].x) +
                               (step_x * i - step_x * borders_coordinates[k].z) * (step_x * i - step_x * borders_coordinates[k].z) +
-                              (delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y) *
-                              (delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y);
+                              (delta_heights[j, i] * scale_y - borders_coordinates[k].y * scale_y) *
+                              (delta_heights[j, i] * scale_y - borders_coordinates[k].y * scale_y);
                     summ_dist += dist[k];
 
                     Vector3 vec_dist = new Vector3(step_z * j - step_z * borders_coordinates[k].x,
-                    delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y,
+                    delta_heights[j, i] * scale_y - borders_coordinates[k].y * scale_y,
                     step_z * i - step_z * borders_coordinates[k].z);
 
                     double cosa = (vec_dist.x * Velocity.x +
@@ -465,18 +617,18 @@ public class TerrainDefform : MonoBehaviour
         }
     }
 
-    void ErosionAlgorithm(ref float[,] delta_heights_final, float[,] delta_heights, List<Vector3> node_coordinates)
+    void ErosionAlgorithm(ref float[,] delta_heights_final, in float[,] delta_heights, in List<Vector3> node_coordinates)
     {
         //Здесь я буду делать алгоритм эрозии
-        float res = (terrain.terrainData.size.x / terrain.terrainData.heightmapResolution);
-        float dzlim = (res * Mathf.Tan(Mathf.Deg2Rad * fi)) / terrain.terrainData.heightmapScale.y;
+        float res = (size_x / terrain_size);
+        float dzlim = (res * Mathf.Tan(Mathf.Deg2Rad * fi)) / scale_y;
 
-        float[,] delta_erosion = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+        float[,] delta_erosion = new float[terrain_size, terrain_size];
         for (int k = 0; k < num_erosion_iter; k++)
         {
-            for (int i = matrix_erosion_size / 2; i < terrain.terrainData.heightmapResolution - matrix_erosion_size / 2; i++)
+            for (int i = matrix_erosion_size / 2; i < terrain_size - matrix_erosion_size / 2; i++)
             {
-                for (int j = matrix_erosion_size / 2; j < terrain.terrainData.heightmapResolution - matrix_erosion_size / 2; j++)
+                for (int j = matrix_erosion_size / 2; j < terrain_size - matrix_erosion_size / 2; j++)
                 {
                     if (delta_heights_final[j, i] == 0)
                         continue;
