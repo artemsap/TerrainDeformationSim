@@ -109,14 +109,14 @@ public class TerrainDefform : MonoBehaviour
 
         for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
         {
-            for (int j = 0; j< terrain.terrainData.heightmapResolution; j++)
+            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
             {
                 delta_heights[j, i] = 0;
                 delta_heights_final[j, i] = 0;
 
                 //Vector3 upDist = transform.TransformDirection(Vector3.up) * default_height[j, i] * terrain.terrainData.heightmapScale.y;
                 RaycastHit hit;
-                if (Physics.Raycast(new Vector3(step_x * i, 0, step_z * j), 
+                if (Physics.Raycast(new Vector3(step_x * i, 0, step_z * j),
                     transform.TransformDirection(Vector3.up),
                     out hit,
                     heights_ter[j, i] * terrain.terrainData.heightmapScale.y))
@@ -136,202 +136,13 @@ public class TerrainDefform : MonoBehaviour
             }
         }
 
-        classification = detect_border(classification, delta_heights, ref borders_coordinates);
-        
-        if (!onlyDeformation)
-        {
-            final_classifiction(classification, delta_heights);
-
-            //Определеяем площадь "footprint" и длину его контура
-            int contur = 0;
-            int ploshad = 0;
-            calc_footprint_params(classification, ref contur, ref ploshad);
-
-            float[,] pressure = calc_pressure(delta_heights, contur, ploshad);
-
-            float[,] centrality_coef = calc_centrality_distr(delta_heights, nodes_coordinates.Count());
-
-            float[,] final_pressure = calc_final_pressure(centrality_coef, pressure);
-        }
-
         float[,] final_delta_sink = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
         float[,] final_delta_buld = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
-        for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
-        {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
-            {
-                if (delta_heights[j, i] == 0)
-                    continue;
+        BaseDeform(ref delta_heights_final, ref final_delta_sink, ref final_delta_buld, velocity, delta_heights);
 
-                float chislitel = velocity.y * velocity.y;
-                float znamenatel = velocity.x * velocity.x +
-                    velocity.y * velocity.y +
-                    velocity.z * velocity.z;
+        VolumeDistibution(ref delta_heights_final, delta_heights, final_delta_sink, final_delta_buld, velocity);
 
-                if (znamenatel == 0)
-                    continue;
-
-                final_delta_sink[j, i] = delta_heights[j, i] * (chislitel / znamenatel);
-
-                float chislitel_buld = velocity.x * velocity.x +
-                    velocity.z * velocity.z;
-
-                final_delta_buld[j, i] = delta_heights[j, i] * (chislitel_buld / znamenatel);
-
-                print("delta buld = " + final_delta_buld[j, i] + " delty sink = " + final_delta_sink[j, i]);
-
-                delta_heights_final[j, i] = -final_delta_sink[j, i] - final_delta_buld[j, i];
-            }
-        }
-
-        /*float correct_detection2 = 0;
-        for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
-        {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
-            {
-                correct_detection2 += delta_heights_final[j, i];
-            }
-        }
-
-        print("Correct detection before sinkage distr= " + correct_detection2);*/
-
-        //Распределеяем вытесненный объем по границам, чтобы потом с помощью эрозии сгладить 
-        float[] borders_volume_distr_sink = new float[borders_coordinates.Count()];
-        float[] borders_volume_distr_buld = new float[borders_coordinates.Count()];
-        double[] delta_height_border = new double[borders_coordinates.Count()];
-
-        for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
-        {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
-            {
-                if (delta_heights[j, i] == 0)
-                    continue;
-
-                double coef_check = 0;
-                double coef_check_1 = 0;
-
-                double[] dist = new double[borders_coordinates.Count()];
-                double[] distr_sink_buld = new double[borders_coordinates.Count()];
-                double summ_dist = 0;
-                double summ_distr_sink_buld = 0;
-                for (int k = 0; k < borders_coordinates.Count(); k++)
-                {
-                    dist[k] = (step_z * j - step_x*borders_coordinates[k].x) * (step_z * j - step_x * borders_coordinates[k].x) +
-                              (step_x * i - step_x*borders_coordinates[k].z) * (step_x * i - step_x * borders_coordinates[k].z) +
-                              (delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y) *
-                              (delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y);
-                    summ_dist += dist[k];
-
-                    Vector3 vec_dist = new Vector3(step_z * j - step_z * borders_coordinates[k].x,
-                    delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y,
-                    step_z * i - step_z * borders_coordinates[k].z);
-
-                    double cosa = (vec_dist.x * velocity.x +
-                        vec_dist.y * velocity.y +
-                        vec_dist.z * velocity.z) /
-                        (vec_dist.magnitude * velocity.magnitude);
-
-                    distr_sink_buld[k] = 0;
-                    if (cosa > 0)
-                    {
-                        distr_sink_buld[k] = cosa;
-                    }
-
-                    summ_distr_sink_buld += distr_sink_buld[k];
-                }
-
-                for (int k = 0; k < borders_coordinates.Count(); k++)
-                {
-                    double distr_sink_coef = dist[k] / summ_dist;//1 / dist[k];
-                    coef_check += distr_sink_coef;
-                    delta_height_border[k] += distr_sink_coef * final_delta_sink[j, i];
-
-                    double distr_sink_buld_fin = distr_sink_buld[k]/ summ_distr_sink_buld;
-                    coef_check_1 += distr_sink_buld_fin;
-                    delta_height_border[k] += distr_sink_buld_fin * final_delta_buld[j, i];
-                }
-            }
-        }
-
-        for (int k = 0; k < borders_coordinates.Count(); k++)
-        {
-            delta_heights_final[(int)borders_coordinates[k].x, (int)borders_coordinates[k].z] = (float)delta_height_border[k];
-        }
-
-        /*float correct_detection1 = 0;
-        for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
-        {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
-            {
-                correct_detection1 += delta_heights_final[j, i];
-            }
-        }
-    
-        print("Correct detection after sinkage distr= " + correct_detection1);*/
-
-        //Здесь я буду делать алгоритм эрозии
-        float res = (terrain.terrainData.size.x / terrain.terrainData.heightmapResolution);
-        float dzlim = (res * Mathf.Tan(Mathf.Deg2Rad * fi)) / terrain.terrainData.heightmapScale.y;
-
-        float[,] delta_erosion = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
-        for (int k = 0; k < num_erosion_iter; k++)
-        {
-            for (int i = matrix_erosion_size/2; i < terrain.terrainData.heightmapResolution - matrix_erosion_size/2; i++)
-            {
-                for (int j = matrix_erosion_size/2; j < terrain.terrainData.heightmapResolution - matrix_erosion_size/2; j++)
-                {
-                    if (delta_heights_final[j, i] == 0)
-                        continue;
-
-                    bool find = FindVector(new Vector3(j, delta_heights[j, i], i), nodes_coordinates);
-
-                    if (find)
-                        continue;
-
-                    float sum = 0;
-                    for (int l = 0; l < matrix_erosion_size; l++)
-                    {
-                        for (int p = 0; p < matrix_erosion_size; p++)
-                        {
-                            int index_1 = j - matrix_erosion_size / 2 + l;
-                            int index_2 = i - matrix_erosion_size / 2 + p;
-                            if (index_1 == j && index_2 == i)
-                                continue;
-
-                            bool find2 = FindVector(new Vector3(index_1, delta_heights[index_1, index_2], index_2), nodes_coordinates);
-                            if (find2)
-                                continue;
-
-                            sum += 1 - delta_heights_final[index_1, index_2];
-                        }
-                    }
-
-                    if (sum == 0 || (delta_heights_final[j, i] < dzlim && delta_heights_final[j, i] > -dzlim))
-                        continue;
-
-                    float step_1 = (delta_heights_final[j, i] - dzlim) / 2;
-
-                    for (int l = 0; l < matrix_erosion_size; l++)
-                    {
-                        for (int p = 0; p < matrix_erosion_size; p++)
-                        {
-                            int index_1 = j - matrix_erosion_size / 2 + l;
-                            int index_2 = i - matrix_erosion_size / 2 + p;
-
-                            bool find2 = FindVector(new Vector3(index_1, delta_heights[index_1, index_2], index_2), nodes_coordinates);
-                            if (find2)
-                                continue;
-
-                            if (index_1 == j && index_2 == i)
-                                delta_heights_final[index_1, index_2] -= step_1;
-                            else
-                                delta_heights_final[index_1, index_2] += step_1 * ((1 - delta_heights_final[index_1, index_2]) / sum);
-
-                        }
-                    }
-                }
-            }
-        }
+        ErosionAlgorithm(ref delta_heights_final, delta_heights, nodes_coordinates);
 
         coef_correctness = 0.0f;
         float correct_detection_final = 0;
@@ -341,7 +152,7 @@ public class TerrainDefform : MonoBehaviour
             {
                 correct_detection_final += delta_heights_final[j, i];
                 heights_ter[j, i] += delta_heights_final[j, i];
-                coef_correctness += (heights_ter[j, i] - default_height[j, i]) * terrain.terrainData.heightmapScale.y;
+                coef_correctness += (heights_ter[j, i] - default_height[j, i]);
             }
         }
 
@@ -550,5 +361,176 @@ public class TerrainDefform : MonoBehaviour
     {
         terrain.terrainData.SetHeights(0, 0, default_height);
         coef_correctness = 0;
+    }
+
+    void BaseDeform(ref float[,] delta_heights_final, ref float[,] final_delta_sink, ref float[,] final_delta_buld, Vector3 Velocity, float[,] delta_heights)
+    {
+        for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
+        {
+            for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
+            {
+                if (delta_heights[j, i] == 0)
+                    continue;
+
+                float chislitel = Velocity.y * Velocity.y;
+                float znamenatel = Velocity.x * Velocity.x +
+                    Velocity.y * Velocity.y +
+                    Velocity.z * Velocity.z;
+
+                if (znamenatel == 0)
+                    continue;
+
+                final_delta_sink[j, i] = delta_heights[j, i] * (chislitel / znamenatel);
+
+                float chislitel_buld = Velocity.x * Velocity.x + Velocity.z * Velocity.z;
+
+                final_delta_buld[j, i] = delta_heights[j, i] * (chislitel_buld / znamenatel);
+
+                delta_heights_final[j, i] = -final_delta_sink[j, i] - final_delta_buld[j, i];
+            }
+        }
+    }
+
+    void VolumeDistibution(ref float[,] delta_heights_final, float[,] delta_heights, float[,] final_delta_sink, float[,] final_delta_buld, Vector3 Velocity)
+    {
+        Vector3 start = terrain.GetComponent<Transform>().position;
+        Vector3 end = terrain.GetComponent<Transform>().position + new Vector3(terrain.terrainData.size.x, 0, terrain.terrainData.size.z);
+
+        float step_x = (float)((end.x - start.x) / (terrain.terrainData.heightmapResolution - 1));
+        float step_z = (float)((end.z - start.z) / (terrain.terrainData.heightmapResolution - 1));
+
+        node_classification[,] classification = new node_classification[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+        List<Vector3> borders_coordinates = new List<Vector3>();
+        classification = detect_border(classification, delta_heights, ref borders_coordinates);
+
+        //Распределеяем вытесненный объем по границам, чтобы потом с помощью эрозии сгладить 
+        float[] borders_volume_distr_sink = new float[borders_coordinates.Count()];
+        float[] borders_volume_distr_buld = new float[borders_coordinates.Count()];
+        double[] delta_height_border = new double[borders_coordinates.Count()];
+
+        for (int i = 0; i < terrain.terrainData.heightmapResolution - 1; i++)
+        {
+            for (int j = 0; j < terrain.terrainData.heightmapResolution - 1; j++)
+            {
+                if (delta_heights[j, i] == 0)
+                    continue;
+
+                double coef_check = 0;
+                double coef_check_1 = 0;
+
+                double[] dist = new double[borders_coordinates.Count()];
+                double[] distr_sink_buld = new double[borders_coordinates.Count()];
+                double summ_dist = 0;
+                double summ_distr_sink_buld = 0;
+                for (int k = 0; k < borders_coordinates.Count(); k++)
+                {
+                    dist[k] = (step_z * j - step_x * borders_coordinates[k].x) * (step_z * j - step_x * borders_coordinates[k].x) +
+                              (step_x * i - step_x * borders_coordinates[k].z) * (step_x * i - step_x * borders_coordinates[k].z) +
+                              (delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y) *
+                              (delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y);
+                    summ_dist += dist[k];
+
+                    Vector3 vec_dist = new Vector3(step_z * j - step_z * borders_coordinates[k].x,
+                    delta_heights[j, i] * terrain.terrainData.heightmapScale.y - borders_coordinates[k].y * terrain.terrainData.heightmapScale.y,
+                    step_z * i - step_z * borders_coordinates[k].z);
+
+                    double cosa = (vec_dist.x * Velocity.x +
+                        vec_dist.y * Velocity.y +
+                        vec_dist.z * Velocity.z) /
+                        (vec_dist.magnitude * Velocity.magnitude);
+
+                    distr_sink_buld[k] = 0;
+                    if (cosa > 0)
+                    {
+                        distr_sink_buld[k] = cosa;
+                    }
+
+                    summ_distr_sink_buld += distr_sink_buld[k];
+                }
+
+                for (int k = 0; k < borders_coordinates.Count(); k++)
+                {
+                    double distr_sink_coef = dist[k] / summ_dist;//1 / dist[k];
+                    coef_check += distr_sink_coef;
+                    delta_height_border[k] += distr_sink_coef * final_delta_sink[j, i];
+
+                    double distr_sink_buld_fin = distr_sink_buld[k] / summ_distr_sink_buld;
+                    coef_check_1 += distr_sink_buld_fin;
+                    delta_height_border[k] += distr_sink_buld_fin * final_delta_buld[j, i];
+                }
+            }
+        }
+
+        for (int k = 0; k < borders_coordinates.Count(); k++)
+        {
+            delta_heights_final[(int)borders_coordinates[k].x, (int)borders_coordinates[k].z] = (float)delta_height_border[k];
+        }
+    }
+
+    void ErosionAlgorithm(ref float[,] delta_heights_final, float[,] delta_heights, List<Vector3> node_coordinates)
+    {
+        //Здесь я буду делать алгоритм эрозии
+        float res = (terrain.terrainData.size.x / terrain.terrainData.heightmapResolution);
+        float dzlim = (res * Mathf.Tan(Mathf.Deg2Rad * fi)) / terrain.terrainData.heightmapScale.y;
+
+        float[,] delta_erosion = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+        for (int k = 0; k < num_erosion_iter; k++)
+        {
+            for (int i = matrix_erosion_size / 2; i < terrain.terrainData.heightmapResolution - matrix_erosion_size / 2; i++)
+            {
+                for (int j = matrix_erosion_size / 2; j < terrain.terrainData.heightmapResolution - matrix_erosion_size / 2; j++)
+                {
+                    if (delta_heights_final[j, i] == 0)
+                        continue;
+
+                    bool find = FindVector(new Vector3(j, delta_heights[j, i], i), node_coordinates);
+
+                    if (find)
+                        continue;
+
+                    float sum = 0;
+                    for (int l = 0; l < matrix_erosion_size; l++)
+                    {
+                        for (int p = 0; p < matrix_erosion_size; p++)
+                        {
+                            int index_1 = j - matrix_erosion_size / 2 + l;
+                            int index_2 = i - matrix_erosion_size / 2 + p;
+                            if (index_1 == j && index_2 == i)
+                                continue;
+
+                            bool find2 = FindVector(new Vector3(index_1, delta_heights[index_1, index_2], index_2), node_coordinates);
+                            if (find2)
+                                continue;
+
+                            sum += 1 - delta_heights_final[index_1, index_2];
+                        }
+                    }
+
+                    if (sum == 0 || (delta_heights_final[j, i] < dzlim && delta_heights_final[j, i] > -dzlim))
+                        continue;
+
+                    float step_1 = (delta_heights_final[j, i] - dzlim) / 2;
+
+                    for (int l = 0; l < matrix_erosion_size; l++)
+                    {
+                        for (int p = 0; p < matrix_erosion_size; p++)
+                        {
+                            int index_1 = j - matrix_erosion_size / 2 + l;
+                            int index_2 = i - matrix_erosion_size / 2 + p;
+
+                            bool find2 = FindVector(new Vector3(index_1, delta_heights[index_1, index_2], index_2), node_coordinates);
+                            if (find2)
+                                continue;
+
+                            if (index_1 == j && index_2 == i)
+                                delta_heights_final[index_1, index_2] -= step_1;
+                            else
+                                delta_heights_final[index_1, index_2] += step_1 * ((1 - delta_heights_final[index_1, index_2]) / sum);
+
+                        }
+                    }
+                }
+            }
+        }
     }
 }
