@@ -59,7 +59,6 @@ public class TerrainDefform : MonoBehaviour
     Vector3 terrain_pos_global;
     float[,] default_height;
     float[,] heights_ter;
-    bool needUpdateTerrain;
     public int terrain_size;
     public float size_x;
     public float size_z;
@@ -68,9 +67,6 @@ public class TerrainDefform : MonoBehaviour
 
     List<conctact_info> contact_lst;
 
-    float[,] delta_heights_final;
-
-    Thread algThread;
 
     // Start is called before the first frame update
     void Start()
@@ -86,14 +82,9 @@ public class TerrainDefform : MonoBehaviour
         size_z = terrain.terrainData.size.z;
         scale_y = terrain.terrainData.heightmapScale.y;
         ReadDefaultHeight();
-        needUpdateTerrain = false;
         terrain_size = terrain.terrainData.heightmapResolution;
         contact_lst = new List<conctact_info>();
 
-        delta_heights_final = new float[terrain_size, terrain_size];
-
-        //algThread = new Thread(new ThreadStart(AlgorithmThread));
-        //algThread.Start();
     }
 
     public void ReadDefaultHeight()
@@ -105,7 +96,6 @@ public class TerrainDefform : MonoBehaviour
     {
         terrain.terrainData.SetHeights(0, 0, default_height);
         coef_correctness = 0;
-        //algThread.Abort();
     }    
 
     private void OnCollisionEnter(Collision collision)
@@ -114,7 +104,6 @@ public class TerrainDefform : MonoBehaviour
         ObjectInformation objinfo = obj.GetComponent<ObjectInformation>();
 
         DeformByIntersection(objinfo.ObjectVelocity);
-        //DeformByIntersectionV2(objinfo.ObjectVelocity);
     }
 
     private void OnCollisionStay(Collision collision)
@@ -123,93 +112,7 @@ public class TerrainDefform : MonoBehaviour
         ObjectInformation objinfo = obj.GetComponent<ObjectInformation>();
 
         DeformByIntersection(objinfo.ObjectVelocity);
-        //DeformByIntersectionV2(objinfo.ObjectVelocity);
     }
-
-    private void Update()
-    {
-        if (needUpdateTerrain)
-        {
-            float[,] heights_ter = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
-
-            coef_correctness = 0.0f;
-            for (int i = 1; i < terrain_size - 1; i++)
-            {
-                for (int j = 1; j < terrain_size - 1; j++)
-                {
-                    if (delta_heights_final[j, i] == 0)
-                        continue;
-
-                    heights_ter[j, i] += delta_heights_final[j, i];
-                    coef_correctness += (heights_ter[j, i] - default_height[j, i]);
-                }
-            }
-
-            terrain.terrainData.SetHeights(0, 0, heights_ter);
-            needUpdateTerrain = false;
-        }
-    }
-    
-    public void AlgorithmThread()
-    {
-        while (true)
-        {
-            if (contact_lst.Count == 0)
-            {
-                Thread.Sleep(1);
-                continue;
-            }
-
-            Thread.Sleep(20);
-
-            int count = contact_lst.Count;
-
-            float[,] delta_heights = new float[terrain_size, terrain_size];
-            List<Vector3> node_contact = new List<Vector3>();
-            Vector3 velocity = contact_lst[0].velocity;
-
-            for (int k = 0; k < count; k++)
-            {
-                for (int i = 0; i< contact_lst[k].node_contact.Count; i++)
-                {
-                    int index_1 = (int)contact_lst[k].node_contact[i].x;
-                    int index_2 = (int)contact_lst[k].node_contact[i].z;
-
-                    if (delta_heights[index_1, index_2] == contact_lst[k].node_contact[i].y)
-                        continue;
-
-                    if (delta_heights[index_1, index_2] == 0)
-                        delta_heights[index_1, index_2] = contact_lst[k].node_contact[i].y;
-
-                    if (delta_heights[index_1, index_2] > contact_lst[k].node_contact[i].y)
-                        delta_heights[index_1, index_2] = contact_lst[k].node_contact[i].y;
-                }    
-
-                for (int i = 0; i < terrain_size; i++)
-                {
-                    for (int j = 0; j < terrain_size; j++)
-                    {
-                        delta_heights_final[j, i] = 0;
-
-                        if (contact_lst[k].deltas[j, i] == 0)
-                            continue;
-
-                        node_contact.Add(new Vector3(j, delta_heights[j, i], i));
-                    }
-                }
-            }
-            contact_lst.Clear();
-
-            BaseDeform(ref delta_heights_final, out var final_delta_sink, out var final_delta_buld, velocity, in delta_heights);
-
-            //VolumeDistibution(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, velocity);
-
-            //ErosionAlgorithm(ref delta_heights_final, in delta_heights, in node_contact);
-
-            needUpdateTerrain = true;
-        }
-    }
-
     public void DeformByIntersectionV2(Vector3 velocity)
     {
         if ((velocity.x == 0 && velocity.y == 0 && velocity.z == 0) || velocity.y > 0)
