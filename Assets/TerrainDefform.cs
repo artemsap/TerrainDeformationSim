@@ -44,6 +44,8 @@ public class TerrainDefform : MonoBehaviour
     public float Kf = 60300.0f;
     public float n = 0.63f;
 
+    public float Ma = 0.2f; //в одном метре столбца 
+
     public int fi = 45;
     public int num_erosion_iter = 5;
     public int matrix_erosion_size = 3; //Минимум 3
@@ -90,8 +92,8 @@ public class TerrainDefform : MonoBehaviour
 
         delta_heights_final = new float[terrain_size, terrain_size];
 
-        algThread = new Thread(new ThreadStart(AlgorithmThread));
-        algThread.Start();
+        //algThread = new Thread(new ThreadStart(AlgorithmThread));
+        //algThread.Start();
     }
 
     public void ReadDefaultHeight()
@@ -103,7 +105,7 @@ public class TerrainDefform : MonoBehaviour
     {
         terrain.terrainData.SetHeights(0, 0, default_height);
         coef_correctness = 0;
-        algThread.Abort();
+        //algThread.Abort();
     }    
 
     private void OnCollisionEnter(Collision collision)
@@ -200,9 +202,9 @@ public class TerrainDefform : MonoBehaviour
 
             BaseDeform(ref delta_heights_final, out var final_delta_sink, out var final_delta_buld, velocity, in delta_heights);
 
-            VolumeDistibution(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, velocity);
+            //VolumeDistibution(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, velocity);
 
-            ErosionAlgorithm(ref delta_heights_final, in delta_heights, in node_contact);
+            //ErosionAlgorithm(ref delta_heights_final, in delta_heights, in node_contact);
 
             needUpdateTerrain = true;
         }
@@ -250,6 +252,8 @@ public class TerrainDefform : MonoBehaviour
         float[,] delta_heights = DetectIntersection(out var nodes_coordinates, heights_ter);
 
         BaseDeform(ref delta_heights_final, out var final_delta_sink, out var final_delta_buld, velocity, in delta_heights);
+
+        TerrainAirCorrection(ref final_delta_sink, in heights_ter);
 
         VolumeDistibution(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, velocity);
 
@@ -537,6 +541,27 @@ public class TerrainDefform : MonoBehaviour
                 final_delta_buld[j, i] = delta_heights[j, i] * (chislitel_buld / znamenatel);
 
                 delta_heights_final[j, i] = -final_delta_sink[j, i] - final_delta_buld[j, i];
+            }
+        }
+    }
+
+    void TerrainAirCorrection(ref float[,] final_delta_sink, in float[,] heights_ter)
+    {
+        for (int i = 0; i < terrain_size - 1; i++)
+        {
+            for (int j = 0; j < terrain_size - 1; j++)
+            {
+                if (final_delta_sink[j, i] == 0)
+                    continue;
+
+                float global_delta = (default_height[j, i] - (heights_ter[j, i] - final_delta_sink[j, i])) * scale_y;
+
+                if (global_delta > Ma || global_delta < 0)
+                {
+                    continue;
+                }
+
+                final_delta_sink[j, i] = 0;
             }
         }
     }
