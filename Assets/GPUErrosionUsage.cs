@@ -35,6 +35,28 @@ public class GPUErrosionUsage : MonoBehaviour
 
     }
 
+    private void Update()
+    {
+        terrain_size = terrain.terrainData.heightmapResolution;
+
+        float res = (terrain.terrainData.size.x / terrain_size);
+        dzlim = (res * Mathf.Tan(Mathf.Deg2Rad * fi)) / terrain.terrainData.heightmapScale.y;
+
+        output = new ComputeBuffer(terrain_size * terrain_size, sizeof(float));
+        heightMap = terrain.terrainData.GetHeights(0, 0, terrain_size, terrain_size);
+        output.SetData(heightMap);
+
+        KerID = ErrosionShader.FindKernel("Errosion");
+        ErrosionShader.SetBuffer(KerID, "output_terrain", output);
+        ErrosionShader.SetInt("terrain_size", terrain_size);
+        ErrosionShader.SetFloat("dzlim", dzlim);
+
+        ErrosionShader.Dispatch(KerID, terrain_size / 8, terrain_size / 8, 1);
+        output.GetData(heightMap);
+
+        terrain.terrainData.SetHeights(0, 0, heightMap);
+    }
+
     public void GpuErrosion()
     {
         terrain_size = terrain.terrainData.heightmapResolution;
