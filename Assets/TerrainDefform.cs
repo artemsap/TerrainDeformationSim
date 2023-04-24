@@ -176,17 +176,24 @@ public class TerrainDefform : MonoBehaviour
 
         //ErosionAlgorithm(ref delta_heights_final, in delta_heights, in nodes_coordinates);
 
-        coef_correctness = 0.0f;
         for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
         {
             for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
             {
                 heights_ter[j, i] += delta_heights_final[j, i];
-                coef_correctness += (heights_ter[j, i] - default_height[j, i]);
             }
         }
 
         ErosionAlgorithmGPU(ref heights_ter, in delta_heights);
+
+        coef_correctness = 0.0f;
+        for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
+        {
+            for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
+            {
+                coef_correctness += (heights_ter[j, i] - default_height[j, i]);
+            }
+        }
 
         //needUpdateTerrain = true;
         terrain.terrainData.SetHeights(0, 0, heights_ter);
