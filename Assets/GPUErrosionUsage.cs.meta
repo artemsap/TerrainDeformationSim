@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: 972cab20cc9a97c4ca677a8eaa385de2
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - ErrosionShader: {fileID: 7200000, guid: 664c082a07688404fad2681b1fcc56a0, type: 3}
+  - terrain: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

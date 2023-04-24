@@ -1,0 +1,77 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Errosion
+
+#pragma enable_d3d11_debug_symbols
+
+RWStructuredBuffer<float> output_terrain;
+int terrain_size;
+
+float dzlim;
+
+uint CalcPos(uint x, uint y)
+{
+    return y + x * terrain_size;
+}
+
+[numthreads(8,8,1)]
+void Errosion(uint3 id : SV_DispatchThreadID)
+{
+    uint pos = CalcPos(id.x, id.y);
+
+    if ((id.x >= 1 && id.x <= terrain_size - 1) && (id.y >= 1 && id.y <= terrain_size - 1))
+    {
+        uint pos_1 = CalcPos(id.x + 1, id.y);
+        uint pos_2 = CalcPos(id.x - 1, id.y);
+        uint pos_3 = CalcPos(id.x, id.y + 1);
+        uint pos_4 = CalcPos(id.x, id.y - 1);
+
+        float dz_1 = output_terrain[pos] - output_terrain[pos_1];
+        float dz_2 = output_terrain[pos] - output_terrain[pos_2];
+        float dz_3 = output_terrain[pos] - output_terrain[pos_3];
+        float dz_4 = output_terrain[pos] - output_terrain[pos_4];
+
+        float sum = 0;
+        float max_dz = 0;
+
+        if (dz_1 > 0)
+        {
+            sum += dz_1;
+            max_dz = max(max_dz, dz_1);
+        }
+
+        if (dz_2 > 0)
+        {
+            sum += dz_2;
+            max_dz = max(max_dz, dz_2);
+        }
+
+        if (dz_3 > 0)
+        {
+            sum += dz_3;
+            max_dz = max(max_dz, dz_3);
+        }
+
+        if (dz_4 > 0)
+        {
+            sum += dz_4;
+            max_dz = max(max_dz, dz_4);
+        }
+
+        if (sum == 0)
+            return;
+
+        if (max_dz > dzlim) {
+            float step_1 = (max_dz - dzlim) / 2;
+
+            output_terrain[pos] -= step_1;
+            if (dz_1 > 0)
+                output_terrain[pos_1] += step_1 * (dz_1 / sum);
+            if (dz_2 > 0)
+                output_terrain[pos_2] += step_1 * (dz_2 / sum);
+            if (dz_3 > 0)
+                output_terrain[pos_3] += step_1 * (dz_3 / sum);
+            if (dz_4 > 0)
+                output_terrain[pos_4] += step_1 * (dz_4 / sum);
+        }
+    }
+}
