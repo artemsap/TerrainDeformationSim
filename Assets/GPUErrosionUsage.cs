@@ -23,6 +23,7 @@ public class GPUErrosionUsage : MonoBehaviour
     public int fi = 30;
 
     ComputeBuffer output;
+    ComputeBuffer delta;
 
     float[,] output_heights;
 
@@ -42,12 +43,17 @@ public class GPUErrosionUsage : MonoBehaviour
         float res = (terrain.terrainData.size.x / terrain_size);
         dzlim = (res * Mathf.Tan(Mathf.Deg2Rad * fi)) / terrain.terrainData.heightmapScale.y;
 
+        float[,] cur_delta = new float[terrain_size, terrain_size];
+        delta = new ComputeBuffer(terrain_size * terrain_size, sizeof(float));
+        delta.SetData(cur_delta);
+
         output = new ComputeBuffer(terrain_size * terrain_size, sizeof(float));
         heightMap = terrain.terrainData.GetHeights(0, 0, terrain_size, terrain_size);
         output.SetData(heightMap);
 
         KerID = ErrosionShader.FindKernel("Errosion");
         ErrosionShader.SetBuffer(KerID, "output_terrain", output);
+        ErrosionShader.SetBuffer(KerID, "cur_delta", delta);
         ErrosionShader.SetInt("terrain_size", terrain_size);
         ErrosionShader.SetFloat("dzlim", dzlim);
 
@@ -64,12 +70,17 @@ public class GPUErrosionUsage : MonoBehaviour
         float res = (terrain.terrainData.size.x / terrain_size);
         dzlim = (res * Mathf.Tan(Mathf.Deg2Rad * fi)) / terrain.terrainData.heightmapScale.y;
 
+        float[,] cur_delta = new float[terrain_size, terrain_size];
+        delta = new ComputeBuffer(terrain_size * terrain_size, sizeof(float));
+        delta.SetData(cur_delta);
+
         output = new ComputeBuffer(terrain_size * terrain_size, sizeof(float));
         heightMap = terrain.terrainData.GetHeights(0, 0, terrain_size, terrain_size);
         output.SetData(heightMap);
 
         KerID = ErrosionShader.FindKernel("Errosion");
         ErrosionShader.SetBuffer(KerID, "output_terrain", output);
+        ErrosionShader.SetBuffer(KerID, "cur_delta", delta);
         ErrosionShader.SetInt("terrain_size", terrain_size);
         ErrosionShader.SetFloat("dzlim", dzlim);
 

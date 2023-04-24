@@ -4,6 +4,7 @@
 #pragma enable_d3d11_debug_symbols
 
 RWStructuredBuffer<float> output_terrain;
+StructuredBuffer<float> cur_delta;
 int terrain_size;
 
 float dzlim;
@@ -18,7 +19,7 @@ void Errosion(uint3 id : SV_DispatchThreadID)
 {
     uint pos = CalcPos(id.x, id.y);
 
-    if ((id.x >= 1 && id.x <= terrain_size - 1) && (id.y >= 1 && id.y <= terrain_size - 1))
+    if ((id.x >= 1 && id.x <= terrain_size - 1) && (id.y >= 1 && id.y <= terrain_size - 1) && cur_delta[pos] == 0)
     {
         uint pos_1 = CalcPos(id.x + 1, id.y);
         uint pos_2 = CalcPos(id.x - 1, id.y);
@@ -44,7 +45,7 @@ void Errosion(uint3 id : SV_DispatchThreadID)
             sum += dz_2;
             max_dz = max(max_dz, dz_2);
         }
-
+         
         if (dz_3 > 0)
         {
             sum += dz_3;
