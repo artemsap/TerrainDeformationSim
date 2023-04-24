@@ -35,9 +35,6 @@ struct conctact_info
 
 public class TerrainDefform : MonoBehaviour
 {
-    public CustomRenderTexture heightMap;
-    public Texture2D output;
-
     public bool onlyDeformation;
 
     public float Kc = 2370.0f;
@@ -67,6 +64,10 @@ public class TerrainDefform : MonoBehaviour
 
     List<conctact_info> contact_lst;
 
+    [HideInInspector]
+    public ComputeShader ErrosionShader;
+
+    ComputeBuffer output;
 
     // Start is called before the first frame update
     void Start()
@@ -160,7 +161,7 @@ public class TerrainDefform : MonoBehaviour
 
         VolumeDistibution(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, velocity);
 
-        ErosionAlgorithm(ref delta_heights_final, in delta_heights, in nodes_coordinates);
+        //ErosionAlgorithm(ref delta_heights_final, in delta_heights, in nodes_coordinates);
 
         coef_correctness = 0.0f;
         for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
@@ -170,6 +171,26 @@ public class TerrainDefform : MonoBehaviour
                 heights_ter[j, i] += delta_heights_final[j, i];
                 coef_correctness += (heights_ter[j, i] - default_height[j, i]);
             }
+        }
+
+        terrain_size = terrain.terrainData.heightmapResolution;
+
+        float res = (terrain.terrainData.size.x / terrain_size);
+        float dzlim = (res * Mathf.Tan(Mathf.Deg2Rad * fi)) / terrain.terrainData.heightmapScale.y;
+
+        output = new ComputeBuffer(terrain_size * terrain_size, sizeof(float));
+
+        for (int i = 0; i < num_erosion_iter; i++)
+        {
+            output.SetData(heights_ter);
+
+            int KerID = ErrosionShader.FindKernel("Errosion");
+            ErrosionShader.SetBuffer(KerID, "output_terrain", output);
+            ErrosionShader.SetInt("terrain_size", terrain_size);
+            ErrosionShader.SetFloat("dzlim", dzlim);
+
+            ErrosionShader.Dispatch(KerID, terrain_size / 8, terrain_size / 8, 1);
+            output.GetData(heights_ter);
         }
 
         //needUpdateTerrain = true;
