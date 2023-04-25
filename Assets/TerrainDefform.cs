@@ -20,19 +20,20 @@ struct node_classification
     public int cnt;
 }
 
-struct conctact_info
+public struct ObjectInfo
 {
     public Vector3 velocity;
-    public float[,] deltas;
-    public List<Vector3> node_contact;
+    public Vector3 size;
+    public Vector3 position;
 
-    public conctact_info(Vector3 _velocity, float[,] _deltas, List<Vector3> _node_contact)
+    public ObjectInfo(Vector3 Velocity, Vector3 Size, Vector3 Position)
     {
-        velocity= _velocity;
-        deltas= _deltas;
-        node_contact= _node_contact;
+        this.velocity = Velocity;
+        this.size = Size;
+        this.position = Position;
     }
 }
+
 
 public class TerrainDefform : MonoBehaviour
 {
@@ -49,6 +50,8 @@ public class TerrainDefform : MonoBehaviour
     public int matrix_erosion_size = 3; //Минимум 3
 
     public Vector3 customVelocity;
+    public Vector3 customSize;
+    public Vector2 customPosition;
 
     public Terrain terrain;
 
@@ -62,8 +65,6 @@ public class TerrainDefform : MonoBehaviour
     public float size_z;
     public Vector3 ter_position;
     public float scale_y;
-
-    List<conctact_info> contact_lst;
 
     [HideInInspector]
     public ComputeShader ErrosionShader;
@@ -86,8 +87,6 @@ public class TerrainDefform : MonoBehaviour
         scale_y = terrain.terrainData.heightmapScale.y;
         ReadDefaultHeight();
         terrain_size = terrain.terrainData.heightmapResolution;
-        contact_lst = new List<conctact_info>();
-
     }
 
     public void ReadDefaultHeight()
@@ -99,14 +98,13 @@ public class TerrainDefform : MonoBehaviour
     {
         terrain.terrainData.SetHeights(0, 0, default_height);
         coef_correctness = 0;
-    }    
-
+    }
     private void OnCollisionEnter(Collision collision)
     {
         GameObject obj = collision.gameObject;
         ObjectInformation objinfo = obj.GetComponent<ObjectInformation>();
 
-        DeformByIntersection(objinfo.ObjectVelocity);
+        DeformByIntersection(new ObjectInfo(objinfo.ObjectVelocity, objinfo.ObjectSize, objinfo.ObjectPosition));
     }
 
     private void OnCollisionStay(Collision collision)
@@ -114,43 +112,21 @@ public class TerrainDefform : MonoBehaviour
         GameObject obj = collision.gameObject;
         ObjectInformation objinfo = obj.GetComponent<ObjectInformation>();
 
-        DeformByIntersection(objinfo.ObjectVelocity);
+        DeformByIntersection(new ObjectInfo(objinfo.ObjectVelocity, objinfo.ObjectSize, objinfo.ObjectPosition));
     }
-    public void DeformByIntersectionV2(Vector3 velocity)
+
+    public void DeformByIntersection(ObjectInfo obj_info)
     {
-        if ((velocity.x == 0 && velocity.y == 0 && velocity.z == 0) || velocity.y > 0)
+        if (obj_info.velocity.x == 0 && obj_info.velocity.y == 0 && obj_info.velocity.z == 0 || obj_info.velocity.y > 0)
             return;
 
         //костыль для корректного определения скорости со столкнувшимся объектом
-        float tmp = velocity.x;
-        velocity.x = velocity.z;
-        velocity.z = tmp;
-        velocity = -velocity;
+        float tmp = obj_info.velocity.x;
+        obj_info.velocity.x = obj_info.velocity.z;
+        obj_info.velocity.z = tmp;
+        obj_info.velocity = -obj_info.velocity;
 
-        velocity /= velocity.magnitude;
-
-        float[,] heights_ter = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
-
-        float[,] delta_heights = DetectIntersection(out var nodes_coordinates, heights_ter);
-
-        if (nodes_coordinates.Count == 0)
-            return;
-
-        contact_lst.Add(new conctact_info(velocity, delta_heights, nodes_coordinates));
-    }
-
-    public void DeformByIntersection(Vector3 velocity)
-    {
-        if (velocity.x == 0 && velocity.y == 0 && velocity.z == 0 || velocity.y > 0)
-            return;
-
-        //костыль для корректного определения скорости со столкнувшимся объектом
-        float tmp = velocity.x;
-        velocity.x = velocity.z;
-        velocity.z = tmp;
-        velocity = -velocity;
-
-        velocity /= velocity.magnitude;
+        obj_info.velocity /= obj_info.velocity.magnitude;
 
         terrain = GetComponent<Terrain>();
         terrain_pos_global = terrain.GetComponent<Transform>().position;
@@ -161,18 +137,17 @@ public class TerrainDefform : MonoBehaviour
         size_z = terrain.terrainData.size.z;
         scale_y = terrain.terrainData.heightmapScale.y;
         terrain_size = terrain.terrainData.heightmapResolution;
-        contact_lst = new List<conctact_info>();
 
         float[,] heights_ter = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
         float[,] delta_heights_final = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
 
-        float[,] delta_heights = DetectIntersection(out var nodes_coordinates, heights_ter);
+        float[,] delta_heights = DetectIntersection(out var nodes_coordinates, heights_ter, obj_info);
 
-        BaseDeform(ref delta_heights_final, out var final_delta_sink, out var final_delta_buld, velocity, in delta_heights);
+        BaseDeform(ref delta_heights_final, out var final_delta_sink, out var final_delta_buld, obj_info.velocity, in delta_heights);
 
         TerrainAirCorrection(ref final_delta_sink, in heights_ter);
 
-        VolumeDistibution(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, velocity);
+        VolumeDistibution(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, obj_info.velocity);
 
         //ErosionAlgorithm(ref delta_heights_final, in delta_heights, in nodes_coordinates);
 
@@ -400,7 +375,7 @@ public class TerrainDefform : MonoBehaviour
         coef_correctness = 0;
     }
 
-    float[,] DetectIntersection(out List<Vector3> nodes_coordinates, float[,] heights_ter)
+    float[,] DetectIntersection(out List<Vector3> nodes_coordinates, float[,] heights_ter, ObjectInfo objinfo)
     {
         nodes_coordinates = new List<Vector3>();
 
