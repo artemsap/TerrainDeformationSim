@@ -51,7 +51,7 @@ public class TerrainDefform : MonoBehaviour
 
     public Vector3 customVelocity;
     public Vector3 customSize;
-    public Vector2 customPosition;
+    public Vector3 customPosition;
 
     public Terrain terrain;
 
@@ -138,8 +138,8 @@ public class TerrainDefform : MonoBehaviour
         scale_y = terrain.terrainData.heightmapScale.y;
         terrain_size = terrain.terrainData.heightmapResolution;
 
-        float[,] heights_ter = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
-        float[,] delta_heights_final = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+        float[,] heights_ter = terrain.terrainData.GetHeights(0, 0, terrain_size, terrain_size);
+        float[,] delta_heights_final = new float[terrain_size, terrain_size];
 
         float[,] delta_heights = DetectIntersection(out var nodes_coordinates, heights_ter, obj_info);
 
@@ -151,9 +151,9 @@ public class TerrainDefform : MonoBehaviour
 
         //ErosionAlgorithm(ref delta_heights_final, in delta_heights, in nodes_coordinates);
 
-        for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
+        for (int i = 1; i < terrain_size - 1; i++)
         {
-            for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
+            for (int j = 1; j < terrain_size - 1; j++)
             {
                 heights_ter[j, i] += delta_heights_final[j, i];
             }
@@ -162,9 +162,9 @@ public class TerrainDefform : MonoBehaviour
         ErosionAlgorithmGPU(ref heights_ter, in delta_heights);
 
         coef_correctness = 0.0f;
-        for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
+        for (int i = 1; i < terrain_size - 1; i++)
         {
-            for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
+            for (int j = 1; j < terrain_size - 1; j++)
             {
                 coef_correctness += (heights_ter[j, i] - default_height[j, i]);
             }
@@ -201,9 +201,9 @@ public class TerrainDefform : MonoBehaviour
     {
         float dist = 0;
 
-        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
+        for (int i = 0; i < terrain_size; i++)
         {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
+            for (int j = 0; j < terrain_size; j++)
             {
                 if (coords.x == j && coords.y == i || delta_heights[j, i] == 0)
                     continue;
@@ -253,9 +253,9 @@ public class TerrainDefform : MonoBehaviour
         //    File.WriteAllText(path, "Startfile: \n\n");
 
         //На основе тех границ, которые мы определили, классифицируем каждую вершину
-        for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
+        for (int i = 1; i < terrain_size - 1; i++)
         {
-            for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
+            for (int j = 1; j < terrain_size - 1; j++)
             {
                 float left = delta_heights[j, i - 1];
                 float right = delta_heights[j, i + 1];
@@ -287,9 +287,9 @@ public class TerrainDefform : MonoBehaviour
 
     void calc_footprint_params(node_classification[,] nodes, ref int contur, ref int ploshad)
     {
-        for (int i = 1; i < terrain.terrainData.heightmapResolution - 1; i++)
+        for (int i = 1; i < terrain_size - 1; i++)
         {
-            for (int j = 1; j < terrain.terrainData.heightmapResolution - 1; j++)
+            for (int j = 1; j < terrain_size - 1; j++)
             {
                 if (nodes[j, i].cnt == 0)
                     continue;
@@ -304,10 +304,10 @@ public class TerrainDefform : MonoBehaviour
 
     float[,] calc_pressure(float[,] delta_heights, int contur, int ploshad)
     {
-        float [,] pressure = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
-        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
+        float [,] pressure = new float[terrain_size, terrain_size];
+        for (int i = 0; i < terrain_size; i++)
         {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
+            for (int j = 0; j < terrain_size; j++)
             {
                 pressure[j, i] = (Kc * (contur / (2 * ploshad)) + Kf) * Mathf.Pow(delta_heights[j, i] * terrain.terrainData.heightmapScale.y, n);
             }
@@ -318,9 +318,9 @@ public class TerrainDefform : MonoBehaviour
     float[,] calc_centrality_distr(float[,] delta_heights, int n_contacts)
     {
         float summ_distance = 0.0f;
-        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
+        for (int i = 0; i < terrain_size; i++)
         {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
+            for (int j = 0; j < terrain_size; j++)
             {
                 if (delta_heights[j, i] == 0)
                     continue;
@@ -334,11 +334,11 @@ public class TerrainDefform : MonoBehaviour
         // if (!File.Exists(path))
         //     File.WriteAllText(path, "\n");
 
-        float[,] centrality_coef = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+        float[,] centrality_coef = new float[terrain_size, terrain_size];
 
-        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
+        for (int i = 0; i < terrain_size; i++)
         {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
+            for (int j = 0; j < terrain_size; j++)
             {
                 if (delta_heights[j, i] == 0)
                 {
@@ -358,10 +358,10 @@ public class TerrainDefform : MonoBehaviour
 
     float[,] calc_final_pressure(float[,] centrality_coef, float[,] pressure)
     {
-        float[,] final_pressure = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
-        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
+        float[,] final_pressure = new float[terrain_size, terrain_size];
+        for (int i = 0; i < terrain_size; i++)
         {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
+            for (int j = 0; j < terrain_size; j++)
             {
                 final_pressure[j, i] = pressure[j, i] * centrality_coef[j, i];
             }
@@ -379,30 +379,37 @@ public class TerrainDefform : MonoBehaviour
     {
         nodes_coordinates = new List<Vector3>();
 
-        float[,] delta_heights = new float[terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution];
+        float[,] delta_heights = new float[terrain_size, terrain_size];
         Vector3 start = terrain.GetComponent<Transform>().position;
         Vector3 end = terrain.GetComponent<Transform>().position + new Vector3(terrain.terrainData.size.x, 0, terrain.terrainData.size.z);
 
-        float step_x = (float)((end.x - start.x) / (terrain.terrainData.heightmapResolution - 1));
-        float step_z = (float)((end.z - start.z) / (terrain.terrainData.heightmapResolution - 1));
+        float step_x = (float)((end.x - start.x) / (terrain_size - 1));
+        float step_z = (float)((end.z - start.z) / (terrain_size - 1));
 
-        for (int i = 0; i < terrain.terrainData.heightmapResolution; i++)
+        int from_1, from_2;
+        int to_1, to_2;
+
+        from_1 = (int)((objinfo.position.x - objinfo.size.x / 2)/step_x);
+        from_2 = (int)((objinfo.position.z - objinfo.size.z / 2) / step_z);
+
+        to_1 = (int)((objinfo.position.x + objinfo.size.x / 2) / step_x);
+        to_2 = (int)((objinfo.position.z + objinfo.size.z / 2) / step_z);
+
+        for (int i = from_1; i < to_1; i++)
         {
-            for (int j = 0; j < terrain.terrainData.heightmapResolution; j++)
+            for (int j = from_2; j < to_2; j++)
             {
-                delta_heights[j, i] = 0;
-
-                //Vector3 upDist = transform.TransformDirection(Vector3.up) * default_height[j, i] * terrain.terrainData.heightmapScale.y;
+                Vector3 upDist = transform.TransformDirection(Vector3.up) * default_height[j, i] * terrain.terrainData.heightmapScale.y;
                 RaycastHit hit;
                 if (Physics.Raycast(new Vector3(step_x * i, 0, step_z * j),
                     transform.TransformDirection(Vector3.up),
                     out hit,
                     heights_ter[j, i] * terrain.terrainData.heightmapScale.y))
                 {
-                    /*Debug.DrawRay(new Vector3(step_x * i, 0, step_z * j), 
+                    Debug.DrawRay(new Vector3(step_x * i, 0, step_z * j), 
                         transform.TransformDirection(Vector3.up) * hit.distance, 
                         Color.green, 
-                        2);*/
+                        2);
 
                     delta_heights[j, i] = (heights_ter[j, i] * terrain.terrainData.heightmapScale.y - hit.distance) / terrain.terrainData.heightmapScale.y;
                     if (delta_heights[j, i] == 0)
@@ -412,6 +419,10 @@ public class TerrainDefform : MonoBehaviour
                 }
             }
         }
+
+        //todo здесь мы заполняем пропуски в delta_heights
+
+
         return delta_heights;
     }
 
