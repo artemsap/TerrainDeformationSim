@@ -1,5 +1,6 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel Errosion
+#pragma kernel VolDistr
 
 #pragma enable_d3d11_debug_symbols
 
@@ -73,6 +74,81 @@ void Errosion(uint3 id : SV_DispatchThreadID)
                 output_terrain[pos_3] += step_1 * (dz_3 / sum);
             if (dz_4 > 0)
                 output_terrain[pos_4] += step_1 * (dz_4 / sum);
+        }
+    }
+}
+
+float step_x;
+float step_z;
+float scale_y;
+StructuredBuffer<double3> border_coords;
+StructuredBuffer<double> final_delta_sink;
+StructuredBuffer<double> final_delta_buld;
+RWStructuredBuffer<double> dist;
+RWStructuredBuffer<double> distr_buld;
+
+RWStructuredBuffer<double> output_delta_border;
+
+int border_count;
+float velocity_x;
+float velocity_y;
+float velocity_z;
+
+double calc_vector_len(double3 vec)
+{
+    return sqrt(vec.x * vec.x + vec.y * vec.y + vec.z * vec.z);
+}
+
+double sqr(double num)
+{
+    return num * num;
+}
+
+[numthreads(8, 8, 1)]
+void VolDistr(uint3 id : SV_DispatchThreadID)
+{
+    uint pos = CalcPos(id.x, id.y);
+
+    double summ_dist = 0;
+    double summ_distr_sink_buld = 0;
+
+    if ((id.x >= 1 && id.x <= terrain_size - 1) && (id.y >= 1 && id.y <= terrain_size - 1) && cur_delta[pos] != 0)
+    {
+        int j = id.y;
+        int i = id.x;
+
+        for (int k = 0; k < border_count; k++)
+        {
+            dist[k] = sqr((step_z * j - step_x * border_coords[k].x)) +
+                      sqr((step_x * i - step_x * border_coords[k].z)) +
+                      sqr((cur_delta[pos] * scale_y - border_coords[k].y * scale_y));
+            summ_dist += dist[k];
+
+            double3 vec_dist = double3( step_z * j - step_z * border_coords[k].x,
+                cur_delta[pos] * scale_y - border_coords[k].y * scale_y,
+                step_z * i - step_z * border_coords[k].z );
+
+            double cosa = (vec_dist.x * velocity_x +
+                vec_dist.y * velocity_y +
+                vec_dist.z * velocity_z) /
+                (calc_vector_len(vec_dist) * calc_vector_len(double3(velocity_x, velocity_y, velocity_z)));
+
+            distr_buld[k] = 0;
+            if (cosa > 0)
+            {
+                distr_buld[k] = cosa;
+            }
+
+            summ_distr_sink_buld += distr_buld[k];
+        }
+
+        for (int k = 0; k < border_count; k++)
+        {
+            double distr_sink_coef = dist[k] / summ_dist;//1 / dist[k];
+            output_delta_border[k] += distr_sink_coef * final_delta_sink[pos];
+
+            double distr_sink_buld_fin = distr_buld[k] / summ_distr_sink_buld;
+            output_delta_border[k] += distr_sink_buld_fin * final_delta_buld[pos];
         }
     }
 }

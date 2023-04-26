@@ -212,24 +212,25 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1f6e5c055af5e7d418cee0ccb27d1585, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  heightMap: {fileID: 0}
-  output: {fileID: 0}
-  onlyDeformation: 1
+  onlyDeformation: 0
   Kc: 2370
   Kf: 60300
   n: 0.63
-  Ma: 0.5
+  Ma: 2
   fi: 30
   num_erosion_iter: 10
   matrix_erosion_size: 3
-  customVelocity: {x: 0, y: 0, z: 0}
+  customVelocity: {x: 0, y: -1, z: 0}
+  customSize: {x: 10, y: 10, z: 10}
+  customPosition: {x: 25, y: 67, z: 25}
   terrain: {fileID: 216397}
   coef_correctness: 0
-  terrain_size: 0
-  size_x: 0
-  size_z: 0
+  terrain_size: 65
+  size_x: 50
+  size_z: 50
   ter_position: {x: 0, y: 0, z: 0}
-  scale_y: 0
+  scale_y: 600
+  ErrosionShader: {fileID: 7200000, guid: 664c082a07688404fad2681b1fcc56a0, type: 3}
 --- !u!1 &223876823
 GameObject:
   m_ObjectHideFlags: 0
@@ -324,10 +325,10 @@ GameObject:
   - component: {fileID: 459488287}
   - component: {fileID: 459488286}
   - component: {fileID: 459488285}
-  - component: {fileID: 459488284}
   - component: {fileID: 459488283}
-  - component: {fileID: 459488288}
   - component: {fileID: 459488289}
+  - component: {fileID: 459488288}
+  - component: {fileID: 459488284}
   m_Layer: 0
   m_Name: Sphere
   m_TagString: Untagged
@@ -348,6 +349,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ObjectVelocity: {x: 0, y: 0, z: 0}
+  ObjectPosition: {x: 0, y: 0, z: 0}
+  ObjectSize: {x: 0, y: 0, z: 0}
 --- !u!135 &459488284
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -417,12 +420,12 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 459488282}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 27.879997, y: 74.06, z: 25}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 25, y: 73.3, z: 25}
   m_LocalScale: {x: 10, y: 10, z: 10}
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 3
+  m_RootOrder: 4
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &459488288
 Rigidbody:
@@ -459,6 +462,36 @@ Animator:
   m_HasTransformHierarchy: 1
   m_AllowConstantClipSamplingOptimization: 1
   m_KeepAnimatorControllerStateOnDisable: 0
+--- !u!1 &974777159
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 974777160}
+  m_Layer: 0
+  m_Name: GameObject
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &974777160
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 974777159}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 25, y: 67, z: 25}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 3
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1840779347
 GameObject:
   m_ObjectHideFlags: 0

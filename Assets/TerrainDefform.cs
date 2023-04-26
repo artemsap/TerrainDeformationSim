@@ -13,7 +13,7 @@ using System.Linq;
 using System.Threading;
 using Assembly_CSharp;
 using static TMPro.SpriteAssetUtilities.TexturePacker_JsonArray;
-
+using UnityEngine;
 struct node_classification
 {
     public bool border;
@@ -66,6 +66,12 @@ public class TerrainDefform : MonoBehaviour
     public Vector3 ter_position;
     public float scale_y;
 
+    float[,] heights_ter;
+    float[,] delta_heights;
+    ObjectInformation objinfo;
+    bool needUpdate;
+
+
     [HideInInspector]
     public ComputeShader ErrosionShader;
 
@@ -102,7 +108,7 @@ public class TerrainDefform : MonoBehaviour
     private void OnCollisionEnter(Collision collision)
     {
         GameObject obj = collision.gameObject;
-        ObjectInformation objinfo = obj.GetComponent<ObjectInformation>();
+        objinfo = obj.GetComponent<ObjectInformation>();
 
         DeformByIntersection(new ObjectInfo(objinfo.ObjectVelocity, objinfo.ObjectSize, objinfo.ObjectPosition));
     }
@@ -110,7 +116,7 @@ public class TerrainDefform : MonoBehaviour
     private void OnCollisionStay(Collision collision)
     {
         GameObject obj = collision.gameObject;
-        ObjectInformation objinfo = obj.GetComponent<ObjectInformation>();
+        objinfo = obj.GetComponent<ObjectInformation>();
 
         DeformByIntersection(new ObjectInfo(objinfo.ObjectVelocity, objinfo.ObjectSize, objinfo.ObjectPosition));
     }
@@ -128,26 +134,31 @@ public class TerrainDefform : MonoBehaviour
 
         obj_info.velocity /= obj_info.velocity.magnitude;
 
-        terrain = GetComponent<Terrain>();
-        terrain_pos_global = terrain.GetComponent<Transform>().position;
-        terrain_pos_global.x += terrain.terrainData.size.x / 2;
-        terrain_pos_global.z += terrain.terrainData.size.z / 2;
-        ter_position = terrain.GetComponent<Transform>().position;
-        size_x = terrain.terrainData.size.x;
-        size_z = terrain.terrainData.size.z;
-        scale_y = terrain.terrainData.heightmapScale.y;
-        terrain_size = terrain.terrainData.heightmapResolution;
+        //terrain = GetComponent<Terrain>();
+        //ter_position = terrain.GetComponent<Transform>().position;
+        //terrain_pos_global = ter_position;
+        //terrain_pos_global.x += terrain.terrainData.size.x / 2;
+        //terrain_pos_global.z += terrain.terrainData.size.z / 2;
+        
+        //size_x = terrain.terrainData.size.x;
+        //size_z = terrain.terrainData.size.z;
+        //scale_y = terrain.terrainData.heightmapScale.y;
+        //terrain_size = terrain.terrainData.heightmapResolution;
 
-        float[,] heights_ter = terrain.terrainData.GetHeights(0, 0, terrain_size, terrain_size);
+        heights_ter = terrain.terrainData.GetHeights(0, 0, terrain_size, terrain_size);
         float[,] delta_heights_final = new float[terrain_size, terrain_size];
 
-        float[,] delta_heights = DetectIntersection(out var nodes_coordinates, heights_ter, obj_info);
-
+        delta_heights = DetectIntersection(out var nodes_coordinates, heights_ter, obj_info);
+        needUpdate = true;
+        
         BaseDeform(ref delta_heights_final, out var final_delta_sink, out var final_delta_buld, obj_info.velocity, in delta_heights);
 
         TerrainAirCorrection(ref final_delta_sink, in heights_ter);
 
         VolumeDistibution(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, obj_info.velocity);
+
+        //VolumeDistibutionGPU(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, obj_info.velocity);
+
 
         //ErosionAlgorithm(ref delta_heights_final, in delta_heights, in nodes_coordinates);
 
@@ -170,7 +181,7 @@ public class TerrainDefform : MonoBehaviour
             }
         }
 
-        //needUpdateTerrain = true;
+        //needUpdate = true;
         terrain.terrainData.SetHeights(0, 0, heights_ter);
     }
 
@@ -399,17 +410,17 @@ public class TerrainDefform : MonoBehaviour
         {
             for (int j = from_2; j < to_2; j++)
             {
-                Vector3 upDist = transform.TransformDirection(Vector3.up) * default_height[j, i] * terrain.terrainData.heightmapScale.y;
+                //Vector3 upDist = transform.TransformDirection(Vector3.up) * default_height[j, i] * terrain.terrainData.heightmapScale.y;
                 RaycastHit hit;
                 if (Physics.Raycast(new Vector3(step_x * i, 0, step_z * j),
                     transform.TransformDirection(Vector3.up),
                     out hit,
                     heights_ter[j, i] * terrain.terrainData.heightmapScale.y))
                 {
-                    Debug.DrawRay(new Vector3(step_x * i, 0, step_z * j), 
+                    /*Debug.DrawRay(new Vector3(step_x * i, 0, step_z * j), 
                         transform.TransformDirection(Vector3.up) * hit.distance, 
                         Color.green, 
-                        2);
+                        2);*/
 
                     delta_heights[j, i] = (heights_ter[j, i] * terrain.terrainData.heightmapScale.y - hit.distance) / terrain.terrainData.heightmapScale.y;
                     if (delta_heights[j, i] == 0)
@@ -419,9 +430,6 @@ public class TerrainDefform : MonoBehaviour
                 }
             }
         }
-
-        //todo здесь мы заполняем пропуски в delta_heights
-
 
         return delta_heights;
     }
@@ -490,10 +498,12 @@ public class TerrainDefform : MonoBehaviour
         List<Vector3> borders_coordinates = new List<Vector3>();
         classification = detect_border(classification, delta_heights, ref borders_coordinates);
 
+        int borders_count = borders_coordinates.Count();
+
         //Распределеяем вытесненный объем по границам, чтобы потом с помощью эрозии сгладить 
-        float[] borders_volume_distr_sink = new float[borders_coordinates.Count()];
-        float[] borders_volume_distr_buld = new float[borders_coordinates.Count()];
-        double[] delta_height_border = new double[borders_coordinates.Count()];
+        float[] borders_volume_distr_sink = new float[borders_count];
+        float[] borders_volume_distr_buld = new float[borders_count];
+        double[] delta_height_border = new double[borders_count];
 
         for (int i = 0; i < terrain_size - 1; i++)
         {
@@ -505,11 +515,11 @@ public class TerrainDefform : MonoBehaviour
                 double coef_check = 0;
                 double coef_check_1 = 0;
 
-                double[] dist = new double[borders_coordinates.Count()];
-                double[] distr_sink_buld = new double[borders_coordinates.Count()];
+                double[] dist = new double[borders_count];
+                double[] distr_sink_buld = new double[borders_count];
                 double summ_dist = 0;
                 double summ_distr_sink_buld = 0;
-                for (int k = 0; k < borders_coordinates.Count(); k++)
+                for (int k = 0; k < borders_count; k++)
                 {
                     dist[k] = (step_z * j - step_x * borders_coordinates[k].x) * (step_z * j - step_x * borders_coordinates[k].x) +
                               (step_x * i - step_x * borders_coordinates[k].z) * (step_x * i - step_x * borders_coordinates[k].z) +
@@ -535,7 +545,7 @@ public class TerrainDefform : MonoBehaviour
                     summ_distr_sink_buld += distr_sink_buld[k];
                 }
 
-                for (int k = 0; k < borders_coordinates.Count(); k++)
+                for (int k = 0; k < borders_count; k++)
                 {
                     double distr_sink_coef = dist[k] / summ_dist;//1 / dist[k];
                     coef_check += distr_sink_coef;
@@ -548,7 +558,7 @@ public class TerrainDefform : MonoBehaviour
             }
         }
 
-        for (int k = 0; k < borders_coordinates.Count(); k++)
+        for (int k = 0; k < borders_count; k++)
         {
             delta_heights_final[(int)borders_coordinates[k].x, (int)borders_coordinates[k].z] = (float)delta_height_border[k];
         }
@@ -647,4 +657,118 @@ public class TerrainDefform : MonoBehaviour
             output.GetData(heights_ter);
         }
     }
+
+    struct double3
+    {
+        public double x;
+        public double y;
+        public double z;
+
+        public double3(double _x, double _y, double _z)
+        {
+            x = _x;
+            y = _y;
+            z = _z;
+        }
+
+    }
+
+    void VolumeDistibutionGPU(ref float[,] delta_heights_final, in float[,] delta_heights, in float[,] final_delta_sink, in float[,] final_delta_buld, Vector3 Velocity)
+    {
+        Vector3 start = ter_position;
+        Vector3 end = ter_position + new Vector3(size_x, 0, size_z);
+
+        float step_x = (float)((end.x - start.x) / (terrain_size - 1));
+        float step_z = (float)((end.z - start.z) / (terrain_size - 1));
+
+        node_classification[,] classification = new node_classification[terrain_size, terrain_size];
+        List<double3> borders_coordinates = new List<double3>();
+        detect_border_2(classification, delta_heights, ref borders_coordinates);
+
+        int borders_count = borders_coordinates.Count();
+
+        if (borders_count == 0)
+            return;
+
+        //Распределеяем вытесненный объем по границам, чтобы потом с помощью эрозии сгладить 
+        double[] delta_height_border = new double[borders_count];
+        double[] dist = new double[borders_count];
+        double[] distr_sink_buld = new double[borders_count];
+
+        ComputeBuffer output_delta_borderb = new ComputeBuffer(borders_count, sizeof(double));
+        ComputeBuffer distb = new ComputeBuffer(borders_count, sizeof(double));
+        ComputeBuffer distr_buldb = new ComputeBuffer(borders_count, sizeof(double));
+        ComputeBuffer border_coordsb = new ComputeBuffer(borders_count, sizeof(double) *3);
+
+        ComputeBuffer final_delta_sinkb = new ComputeBuffer(terrain_size* terrain_size, sizeof(float));
+        ComputeBuffer final_delta_buldb = new ComputeBuffer(terrain_size* terrain_size, sizeof(float));
+
+        delta = new ComputeBuffer(terrain_size * terrain_size, sizeof(float));
+        delta.SetData(delta_heights);
+
+        output_delta_borderb.SetData(delta_height_border);
+        distb.SetData(dist);
+        distr_buldb.SetData(distr_sink_buld);
+        border_coordsb.SetData(borders_coordinates.ToArray());
+
+        final_delta_sinkb.SetData(final_delta_sink);
+        final_delta_buldb.SetData(final_delta_buld);
+
+        int KerID = ErrosionShader.FindKernel("VolDistr");
+        ErrosionShader.SetBuffer(KerID, "border_coords", border_coordsb);
+        ErrosionShader.SetBuffer(KerID, "final_delta_sink", final_delta_sinkb);
+        ErrosionShader.SetBuffer(KerID, "final_delta_buld", final_delta_buldb);
+        ErrosionShader.SetBuffer(KerID, "dist", distb);
+        ErrosionShader.SetBuffer(KerID, "distr_buld", distr_buldb);
+        ErrosionShader.SetBuffer(KerID, "output_delta_border", output_delta_borderb);
+        ErrosionShader.SetBuffer(KerID, "cur_delta", delta);
+
+        ErrosionShader.SetInt("border_count", borders_count);
+        ErrosionShader.SetFloat("step_x", step_x);
+        ErrosionShader.SetFloat("step_z", step_z);
+        ErrosionShader.SetFloat("scale_y", scale_y);
+        ErrosionShader.SetFloat("velocity_x", Velocity.x);
+        ErrosionShader.SetFloat("velocity_y", Velocity.y);
+        ErrosionShader.SetFloat("velocity_z", Velocity.z);
+
+        ErrosionShader.Dispatch(KerID, terrain_size / 8, terrain_size / 8, 1);
+        output_delta_borderb.GetData(delta_height_border);
+
+        for (int k = 0; k < borders_count; k++)
+        {
+            delta_heights_final[(int)borders_coordinates[k].x, (int)borders_coordinates[k].z] = (float)delta_height_border[k];
+        }
+    }
+
+    node_classification[,] detect_border_2(node_classification[,] nodes, float[,] delta_heights, ref List<double3> borders_coordinates)
+    {
+        //Определили границы
+        for (int i = 1; i < terrain_size - 1; i++)
+        {
+            for (int j = 1; j < terrain_size - 1; j++)
+            {
+                nodes[j, i].cnt = 0;
+                nodes[j, i].border = false;
+
+                float left = delta_heights[j, i - 1];
+                float right = delta_heights[j, i + 1];
+                float up = delta_heights[j + 1, i];
+                float down = delta_heights[j - 1, i];
+                if (left == 0 && right == 0 && up == 0 && down == 0)
+                {
+                    continue;
+                }
+
+                else if ((left != 0 || right != 0 || up != 0 || down != 0) && (delta_heights[j, i] == 0))
+                {
+                    nodes[j, i].border = true;
+                    borders_coordinates.Add(new double3(j, delta_heights[j, i], i));
+                    //heights_ter[j, i] +=  0.005f; <---- оталдочная проверка корректности найденных границ
+                }
+            }
+        }
+
+        return nodes;
+    }
+
 }
