@@ -8,6 +8,12 @@ RWStructuredBuffer<float> output_terrain;
 StructuredBuffer<float> cur_delta;
 int terrain_size;
 
+float size_x;
+float size_z;
+
+float position_x;
+float position_z;
+
 float dzlim;
 
 uint CalcPos(uint x, uint y)

@@ -653,6 +653,11 @@ public class TerrainDefform : MonoBehaviour
             ErrosionShader.SetInt("terrain_size", terrain_size);
             ErrosionShader.SetFloat("dzlim", dzlim);
 
+            ErrosionShader.SetFloat("size_x", objinfo.ObjectSize.x);
+            ErrosionShader.SetFloat("size_z", objinfo.ObjectSize.z);
+            ErrosionShader.SetFloat("position_x", objinfo.ObjectPosition.x);
+            ErrosionShader.SetFloat("position_z", objinfo.ObjectPosition.z);
+
             ErrosionShader.Dispatch(KerID, terrain_size / 8, terrain_size / 8, 1);
             output.GetData(heights_ter);
         }
