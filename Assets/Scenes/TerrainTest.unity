@@ -216,9 +216,9 @@ MonoBehaviour:
   Kc: 2370
   Kf: 60300
   n: 0.63
-  Ma: 2
+  Ma: 10
   fi: 30
-  num_erosion_iter: 10
+  num_erosion_iter: 15
   matrix_erosion_size: 3
   customVelocity: {x: 0, y: -1, z: 0}
   customSize: {x: 10, y: 10, z: 10}
@@ -451,7 +451,7 @@ Animator:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 459488282}
-  m_Enabled: 1
+  m_Enabled: 0
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 40338214bad809e42920fa7a9db903e4, type: 2}
   m_CullingMode: 0

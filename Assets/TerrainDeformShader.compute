@@ -26,7 +26,7 @@ void Errosion(uint3 id : SV_DispatchThreadID)
 {
     uint pos = CalcPos(id.x, id.y);
 
-    if ((id.x >= 1 && id.x <= terrain_size - 1) && (id.y >= 1 && id.y <= terrain_size - 1) && cur_delta[pos] == 0)
+    if ((id.x >= 1 && id.x <= terrain_size - 1) && (id.y >= 1 && id.y <= terrain_size - 1) /* && cur_delta[pos] == 0*/)
     {
         uint pos_1 = CalcPos(id.x + 1, id.y);
         uint pos_2 = CalcPos(id.x - 1, id.y);
