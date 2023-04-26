@@ -68,6 +68,8 @@ public class TerrainDefform : MonoBehaviour
 
     float[,] heights_ter;
     float[,] delta_heights;
+    float[,] max_dz;
+
     ObjectInformation objinfo;
     bool needUpdate;
 
@@ -79,6 +81,10 @@ public class TerrainDefform : MonoBehaviour
     ComputeBuffer delta;
 
     bool Conctact;
+
+    public float ErrosionThreshHold = 0.001f;
+    public float ErrosionCoef = 1;
+    public float final_max_dz = 1;
 
     // Start is called before the first frame update
     void Start()
@@ -96,14 +102,26 @@ public class TerrainDefform : MonoBehaviour
         scale_y = terrain.terrainData.heightmapScale.y;
         ReadDefaultHeight();
         terrain_size = terrain.terrainData.heightmapResolution;
+        max_dz = new float[terrain_size, terrain_size];
     }
 
     public void FixedUpdate()
     {
-        if (Conctact)
+        if (Conctact || final_max_dz < ErrosionThreshHold && ErrosionCoef < 0.00002)
             return;
         heights_ter = terrain.terrainData.GetHeights(0, 0, terrain_size, terrain_size);
-        ErosionAlgorithmGPU(ref heights_ter, delta_heights, 1);
+        ErrosionCoef = ErosionAlgorithmGPU(ref heights_ter, delta_heights, 1);
+
+        float final_max_dz1 = 0;
+        for (int i = 0; i < terrain_size; i++)
+            for (int j = 0; j < terrain_size; j++)
+                if (final_max_dz1 < max_dz[j, i])
+                {
+                    final_max_dz1 = max_dz[j, i];
+                    final_max_dz = max_dz[j, i];
+                }
+                    
+
         terrain.terrainData.SetHeights(0, 0, heights_ter);
     }
 
@@ -188,7 +206,7 @@ public class TerrainDefform : MonoBehaviour
             }
         }
 
-        ErosionAlgorithmGPU(ref heights_ter, in delta_heights, num_erosion_iter);
+        ErrosionCoef = ErosionAlgorithmGPU(ref heights_ter, in delta_heights, num_erosion_iter);
 
         coef_correctness = 0.0f;
         for (int i = 1; i < terrain_size - 1; i++)
@@ -649,7 +667,7 @@ public class TerrainDefform : MonoBehaviour
         }
     }
 
-    void ErosionAlgorithmGPU(ref float[,] heights_ter, in float[,] delta_heights, int num_erosion_iter)
+    float ErosionAlgorithmGPU(ref float[,] heights_ter, in float[,] delta_heights, int num_erosion_iter)
     {
         terrain_size = terrain.terrainData.heightmapResolution;
 
@@ -658,15 +676,24 @@ public class TerrainDefform : MonoBehaviour
 
         output = new ComputeBuffer(terrain_size * terrain_size, sizeof(float));
 
+        ComputeBuffer ercoef = new ComputeBuffer(1, sizeof(float));
+        ComputeBuffer max_dzb = new ComputeBuffer(terrain_size * terrain_size, sizeof(float));
         //delta = new ComputeBuffer(terrain_size * terrain_size, sizeof(float));
         //delta.SetData(delta_heights);
+
+        float[] er_coef = new float[1];
+        er_coef[0] = 0;
 
         for (int i = 0; i < num_erosion_iter; i++)
         {
             output.SetData(heights_ter);
+            ercoef.SetData(er_coef);
+            max_dzb.SetData(max_dz);
 
             int KerID = ErrosionShader.FindKernel("Errosion");
             ErrosionShader.SetBuffer(KerID, "output_terrain", output);
+            ErrosionShader.SetBuffer(KerID, "errosion_coef", ercoef);
+            ErrosionShader.SetBuffer(KerID, "max_dz_fin", max_dzb);
             //ErrosionShader.SetBuffer(KerID, "cur_delta", delta);
             ErrosionShader.SetInt("terrain_size", terrain_size);
             ErrosionShader.SetFloat("dzlim", dzlim);
@@ -678,7 +705,11 @@ public class TerrainDefform : MonoBehaviour
 
             ErrosionShader.Dispatch(KerID, terrain_size / 8, terrain_size / 8, 1);
             output.GetData(heights_ter);
+            ercoef.GetData(er_coef);
+            max_dzb.GetData(max_dz);
         }
+
+        return er_coef[0];
     }
 
     struct double3

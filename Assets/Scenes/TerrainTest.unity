@@ -231,6 +231,9 @@ MonoBehaviour:
   ter_position: {x: 0, y: 0, z: 0}
   scale_y: 600
   ErrosionShader: {fileID: 7200000, guid: 664c082a07688404fad2681b1fcc56a0, type: 3}
+  ErrosionThreshHold: 0.0015
+  ErrosionCoef: 1
+  final_max_dz: 1
 --- !u!1 &223876823
 GameObject:
   m_ObjectHideFlags: 0
@@ -451,7 +454,7 @@ Animator:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 459488282}
-  m_Enabled: 0
+  m_Enabled: 1
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 40338214bad809e42920fa7a9db903e4, type: 2}
   m_CullingMode: 0

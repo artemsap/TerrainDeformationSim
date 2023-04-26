@@ -6,6 +6,9 @@
 
 RWStructuredBuffer<float> output_terrain;
 StructuredBuffer<float> cur_delta;
+RWStructuredBuffer<float> errosion_coef;
+RWStructuredBuffer<float> max_dz_fin;
+
 int terrain_size;
 
 float size_x;
@@ -71,6 +74,8 @@ void Errosion(uint3 id : SV_DispatchThreadID)
         if (max_dz > dzlim) {
             float step_1 = (max_dz - dzlim) / 2;
 
+            errosion_coef[0] += abs(step_1);
+            
             output_terrain[pos] -= step_1;
             if (dz_1 > 0)
                 output_terrain[pos_1] += step_1 * (dz_1 / sum);
@@ -80,6 +85,8 @@ void Errosion(uint3 id : SV_DispatchThreadID)
                 output_terrain[pos_3] += step_1 * (dz_3 / sum);
             if (dz_4 > 0)
                 output_terrain[pos_4] += step_1 * (dz_4 / sum);
+
+            max_dz_fin[pos] = max_dz;
         }
     }
 }
