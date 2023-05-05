@@ -114,13 +114,16 @@ public class TerrainDefform : MonoBehaviour
 
         float final_max_dz1 = 0;
         for (int i = 0; i < terrain_size; i++)
+        {
             for (int j = 0; j < terrain_size; j++)
+            {
                 if (final_max_dz1 < max_dz[j, i])
                 {
                     final_max_dz1 = max_dz[j, i];
                     final_max_dz = max_dz[j, i];
                 }
-                    
+            } 
+        }      
 
         terrain.terrainData.SetHeights(0, 0, heights_ter);
     }
@@ -213,7 +216,7 @@ public class TerrainDefform : MonoBehaviour
         {
             for (int j = 1; j < terrain_size - 1; j++)
             {
-                coef_correctness += (heights_ter[j, i] - default_height[j, i]);
+                coef_correctness += ((heights_ter[j, i] - default_height[j, i]) / (terrain_size * terrain_size)) * scale_y;
             }
         }
 
@@ -557,10 +560,10 @@ public class TerrainDefform : MonoBehaviour
                 double summ_distr_sink_buld = 0;
                 for (int k = 0; k < borders_count; k++)
                 {
-                    dist[k] = (step_z * j - step_x * borders_coordinates[k].x) * (step_z * j - step_x * borders_coordinates[k].x) +
+                    dist[k] = 1 / ((step_z * j - step_x * borders_coordinates[k].x) * (step_z * j - step_x * borders_coordinates[k].x) +
                               (step_x * i - step_x * borders_coordinates[k].z) * (step_x * i - step_x * borders_coordinates[k].z) +
                               (delta_heights[j, i] * scale_y - borders_coordinates[k].y * scale_y) *
-                              (delta_heights[j, i] * scale_y - borders_coordinates[k].y * scale_y);
+                              (delta_heights[j, i] * scale_y - borders_coordinates[k].y * scale_y));
                     summ_dist += dist[k];
 
                     Vector3 vec_dist = new Vector3(step_z * j - step_z * borders_coordinates[k].x,
@@ -583,7 +586,7 @@ public class TerrainDefform : MonoBehaviour
 
                 for (int k = 0; k < borders_count; k++)
                 {
-                    double distr_sink_coef = dist[k] / summ_dist;//1 / dist[k];
+                    double distr_sink_coef =  dist[k] / summ_dist;//1 / dist[k];
                     coef_check += distr_sink_coef;
                     delta_height_border[k] += distr_sink_coef * final_delta_sink[j, i];
 
