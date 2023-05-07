@@ -47,12 +47,18 @@ public class TerrainDefform : MonoBehaviour
     [HideInInspector]
     public float n = 0.63f;
 
+    public bool NeedSoilCompaction = true;
     public float Ma = 0.2f; //в одном метре столбца 
 
-    public int fi = 45;
-    public int num_erosion_iter = 5;
+    public bool NeedVolumeDistribution = true;
+    public int fi = 30;
+    public bool NeedErrosion = true;
+    public int NumErosionIter = 10;
     [HideInInspector]
     public int matrix_erosion_size = 3; //Минимум 3
+
+    public float MaxDzThreshHold = 0.002f;
+    public float ErrosionCoefThreshHold = 0.00002f;
 
     public Vector3 customVelocity;
     public Vector3 customSize;
@@ -92,7 +98,6 @@ public class TerrainDefform : MonoBehaviour
 
     bool Conctact;
 
-    public float ErrosionThreshHold = 0.001f;
     public float ErrosionCoef = 1;
     List<float> coef_errosion_arr;
     public float final_max_dz = 1;
@@ -127,7 +132,10 @@ public class TerrainDefform : MonoBehaviour
 
     public void FixedUpdate()
     {
-        if (Conctact || (final_max_dz < ErrosionThreshHold && ErrosionCoef < 0.00002))
+        if (!NeedErrosion)
+            return;
+
+        if (Conctact || (final_max_dz < MaxDzThreshHold && ErrosionCoef < ErrosionCoefThreshHold))
             return;
         heights_ter = terrain.terrainData.GetHeights(0, 0, terrain_size, terrain_size);
         ErrosionCoef = ErosionAlgorithmGPU(ref heights_ter, delta_heights, 1);
@@ -217,11 +225,13 @@ public class TerrainDefform : MonoBehaviour
         
         BaseDeform(ref delta_heights_final, out var final_delta_sink, out var final_delta_buld, obj_info.velocity, in delta_heights);
 
-        TerrainAirCorrection(ref final_delta_sink, in heights_ter);
+        if (NeedSoilCompaction)
+            TerrainAirCorrection(ref final_delta_sink, in heights_ter);
 
         //VolumeDistibutionArticleEdition(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, obj_info.velocity);
 
-        VolumeDistibution(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, obj_info.velocity);
+        if (NeedVolumeDistribution)
+            VolumeDistibution(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, obj_info.velocity);
 
         //VolumeDistibutionGPU(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, obj_info.velocity);
 
@@ -236,8 +246,11 @@ public class TerrainDefform : MonoBehaviour
             }
         }
 
-        ErrosionCoef = ErosionAlgorithmGPU(ref heights_ter, in delta_heights, num_erosion_iter);
-        coef_errosion_arr.Add(ErrosionCoef);
+        if (NeedErrosion)
+        {
+            ErrosionCoef = ErosionAlgorithmGPU(ref heights_ter, in delta_heights, NumErosionIter);
+            coef_errosion_arr.Add(ErrosionCoef);
+        }
 
         coef_correctness = 0.0f;
         float final_max_dz1 = 0;
@@ -757,7 +770,7 @@ public class TerrainDefform : MonoBehaviour
         float dzlim = (res * Mathf.Tan(Mathf.Deg2Rad * fi)) / scale_y;
 
         float[,] delta_erosion = new float[terrain_size, terrain_size];
-        for (int k = 0; k < num_erosion_iter; k++)
+        for (int k = 0; k < NumErosionIter; k++)
         {
             for (int i = matrix_erosion_size / 2; i < terrain_size - matrix_erosion_size / 2; i++)
             {
