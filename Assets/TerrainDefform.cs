@@ -103,6 +103,13 @@ public class TerrainDefform : MonoBehaviour
     public float final_max_dz = 1;
     List<float> final_max_dz_arr;
 
+
+    int m_frameCounter = 0;
+    float m_timeCounter = 0.0f;
+    float m_lastFramerate = 0.0f;
+    public float m_refreshTime = 0.5f;
+    List<float> FPS_arr;
+
     // Start is called before the first frame update
     void Start()
     {
@@ -123,11 +130,12 @@ public class TerrainDefform : MonoBehaviour
         coef_correctness_arr = new List<double>();
         final_max_dz_arr = new List<float>();
         coef_errosion_arr = new List<float>();
+        FPS_arr = new List<float>();
 
         File.Delete(Application.dataPath + "/coef_correctness.csv");
         File.Delete(Application.dataPath + "/max_dz.csv");
         File.Delete(Application.dataPath + "/coef_erosion.csv");
-
+        File.Delete(Application.dataPath + "/fps.csv");
     }
 
     public void FixedUpdate()
@@ -158,6 +166,23 @@ public class TerrainDefform : MonoBehaviour
         terrain.terrainData.SetHeights(0, 0, heights_ter);
     }
 
+    public void Update()
+    {
+        if (m_timeCounter < m_refreshTime)
+        {
+            m_timeCounter += Time.deltaTime;
+            m_frameCounter++;
+        }
+        else
+        {
+            //This code will break if you set your m_refreshTime to 0, which makes no sense.
+            m_lastFramerate = (float)m_frameCounter / m_timeCounter;
+            FPS_arr.Add(m_lastFramerate);
+            m_frameCounter = 0;
+            m_timeCounter = 0.0f;
+        }
+    }
+
     public void ReadDefaultHeight()
     {
         default_height = terrain.terrainData.GetHeights(0, 0, terrain.terrainData.heightmapResolution, terrain.terrainData.heightmapResolution);
@@ -168,6 +193,7 @@ public class TerrainDefform : MonoBehaviour
         SaveCoefCorrectToFile(coef_correctness_arr);
         SaveErrosionCoef(coef_errosion_arr);
         SaveMaxDz(final_max_dz_arr);
+        SaveFPS(FPS_arr);
         terrain.terrainData.SetHeights(0, 0, default_height);
         coef_correctness = 0;
     }
@@ -302,6 +328,17 @@ public class TerrainDefform : MonoBehaviour
         foreach (var coef in coef_erosion)
         {
             File.AppendAllText(path, coef.ToString() + ";");
+        }
+    }
+
+    void SaveFPS(List<float> FPS_arr)
+    {
+        string path = Application.dataPath + "/fps.csv";
+        if (!File.Exists(path))
+            File.WriteAllText(path, "Startfile: \n\n");
+        foreach (var fps in FPS_arr)
+        {
+            File.AppendAllText(path, fps.ToString() + ";");
         }
     }
 

@@ -238,6 +238,7 @@ MonoBehaviour:
   ErrosionShader: {fileID: 7200000, guid: 664c082a07688404fad2681b1fcc56a0, type: 3}
   ErrosionCoef: 1
   final_max_dz: 1
+  m_refreshTime: 0.5
 --- !u!1 &223876823
 GameObject:
   m_ObjectHideFlags: 0
