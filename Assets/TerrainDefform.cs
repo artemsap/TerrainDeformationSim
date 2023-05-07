@@ -37,16 +37,21 @@ public struct ObjectInfo
 
 public class TerrainDefform : MonoBehaviour
 {
+    [HideInInspector]
     public bool onlyDeformation;
 
+    [HideInInspector]
     public float Kc = 2370.0f;
+    [HideInInspector]
     public float Kf = 60300.0f;
+    [HideInInspector]
     public float n = 0.63f;
 
     public float Ma = 0.2f; //в одном метре столбца 
 
     public int fi = 45;
     public int num_erosion_iter = 5;
+    [HideInInspector]
     public int matrix_erosion_size = 3; //Минимум 3
 
     public Vector3 customVelocity;
@@ -55,15 +60,21 @@ public class TerrainDefform : MonoBehaviour
 
     public Terrain terrain;
 
-    public float coef_correctness = 0.0f;
+    public double coef_correctness = 0.0f;
+    List<double> coef_correctness_arr;
 
     Vector3 terrain_pos_global;
     float[,] default_height;
     //float[,] heights_ter;
+    [HideInInspector]
     public int terrain_size;
+    [HideInInspector]
     public float size_x;
+    [HideInInspector]
     public float size_z;
+    [HideInInspector]
     public Vector3 ter_position;
+    [HideInInspector]
     public float scale_y;
 
     float[,] heights_ter;
@@ -72,7 +83,6 @@ public class TerrainDefform : MonoBehaviour
 
     ObjectInformation objinfo;
     bool needUpdate;
-
 
     [HideInInspector]
     public ComputeShader ErrosionShader;
@@ -84,7 +94,9 @@ public class TerrainDefform : MonoBehaviour
 
     public float ErrosionThreshHold = 0.001f;
     public float ErrosionCoef = 1;
+    List<float> coef_errosion_arr;
     public float final_max_dz = 1;
+    List<float> final_max_dz_arr;
 
     // Start is called before the first frame update
     void Start()
@@ -103,11 +115,19 @@ public class TerrainDefform : MonoBehaviour
         ReadDefaultHeight();
         terrain_size = terrain.terrainData.heightmapResolution;
         max_dz = new float[terrain_size, terrain_size];
+        coef_correctness_arr = new List<double>();
+        final_max_dz_arr = new List<float>();
+        coef_errosion_arr = new List<float>();
+
+        File.Delete(Application.dataPath + "/coef_correctness.csv");
+        File.Delete(Application.dataPath + "/max_dz.csv");
+        File.Delete(Application.dataPath + "/coef_erosion.csv");
+
     }
 
     public void FixedUpdate()
     {
-        if (Conctact || final_max_dz < ErrosionThreshHold && ErrosionCoef < 0.00002)
+        if (Conctact || (final_max_dz < ErrosionThreshHold && ErrosionCoef < 0.00002))
             return;
         heights_ter = terrain.terrainData.GetHeights(0, 0, terrain_size, terrain_size);
         ErrosionCoef = ErosionAlgorithmGPU(ref heights_ter, delta_heights, 1);
@@ -123,7 +143,9 @@ public class TerrainDefform : MonoBehaviour
                     final_max_dz = max_dz[j, i];
                 }
             } 
-        }      
+        }
+        final_max_dz_arr.Add(final_max_dz);
+        coef_errosion_arr.Add(ErrosionCoef);
 
         terrain.terrainData.SetHeights(0, 0, heights_ter);
     }
@@ -135,6 +157,9 @@ public class TerrainDefform : MonoBehaviour
 
     void OnApplicationQuit()
     {
+        SaveCoefCorrectToFile(coef_correctness_arr);
+        SaveErrosionCoef(coef_errosion_arr);
+        SaveMaxDz(final_max_dz_arr);
         terrain.terrainData.SetHeights(0, 0, default_height);
         coef_correctness = 0;
     }
@@ -194,6 +219,8 @@ public class TerrainDefform : MonoBehaviour
 
         TerrainAirCorrection(ref final_delta_sink, in heights_ter);
 
+        //VolumeDistibutionArticleEdition(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, obj_info.velocity);
+
         VolumeDistibution(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, obj_info.velocity);
 
         //VolumeDistibutionGPU(ref delta_heights_final, in delta_heights, in final_delta_sink, in final_delta_buld, obj_info.velocity);
@@ -210,18 +237,59 @@ public class TerrainDefform : MonoBehaviour
         }
 
         ErrosionCoef = ErosionAlgorithmGPU(ref heights_ter, in delta_heights, num_erosion_iter);
+        coef_errosion_arr.Add(ErrosionCoef);
 
         coef_correctness = 0.0f;
+        float final_max_dz1 = 0;
         for (int i = 1; i < terrain_size - 1; i++)
         {
             for (int j = 1; j < terrain_size - 1; j++)
             {
                 coef_correctness += ((heights_ter[j, i] - default_height[j, i]) / (terrain_size * terrain_size)) * scale_y;
+                if (final_max_dz1 < max_dz[j, i])
+                {
+                    final_max_dz1 = max_dz[j, i];
+                    final_max_dz = max_dz[j, i];
+                }
             }
         }
+        final_max_dz_arr.Add(final_max_dz);
+        coef_correctness_arr.Add(coef_correctness);
 
         //needUpdate = true;
         terrain.terrainData.SetHeights(0, 0, heights_ter);
+    }
+
+    void SaveCoefCorrectToFile(List<double> coef_correct)
+    {
+        string path = Application.dataPath + "/coef_correctness.csv";
+        if (!File.Exists(path))
+            File.WriteAllText(path, "Startfile: \n\n");
+        foreach (var coef in coef_correct)
+        {
+            File.AppendAllText(path, coef.ToString() + ";");
+        }
+    }
+    void SaveMaxDz(List<float> max_dz)
+    {
+        string path = Application.dataPath + "/max_dz.csv";
+        if (!File.Exists(path))
+            File.WriteAllText(path, "Startfile: \n\n");
+        foreach (var coef in max_dz)
+        {
+            File.AppendAllText(path, coef.ToString() + ";");
+        }
+    }
+
+    void SaveErrosionCoef(List<float> coef_erosion)
+    {
+        string path = Application.dataPath + "/coef_erosion.csv";
+        if (!File.Exists(path))
+            File.WriteAllText(path, "Startfile: \n\n");
+        foreach (var coef in coef_erosion)
+        {
+            File.AppendAllText(path, coef.ToString() + ";");
+        }
     }
 
     bool FindVector(Vector3 vectortofind, List<Vector3> nodes_coordinates)
@@ -602,6 +670,85 @@ public class TerrainDefform : MonoBehaviour
             delta_heights_final[(int)borders_coordinates[k].x, (int)borders_coordinates[k].z] = (float)delta_height_border[k];
         }
     }
+
+    void VolumeDistibutionArticleEdition(ref float[,] delta_heights_final, in float[,] delta_heights, in float[,] final_delta_sink, in float[,] final_delta_buld, Vector3 Velocity)
+    {
+        Vector3 start = ter_position;
+        Vector3 end = ter_position + new Vector3(size_x, 0, size_z);
+
+        float step_x = (float)((end.x - start.x) / (terrain_size - 1));
+        float step_z = (float)((end.z - start.z) / (terrain_size - 1));
+
+        node_classification[,] classification = new node_classification[terrain_size, terrain_size];
+        List<Vector3> borders_coordinates = new List<Vector3>();
+        classification = detect_border(classification, delta_heights, ref borders_coordinates);
+
+        int borders_count = borders_coordinates.Count();
+
+        //Распределеяем вытесненный объем по границам, чтобы потом с помощью эрозии сгладить 
+        float[] borders_volume_distr_sink = new float[borders_count];
+        float[] borders_volume_distr_buld = new float[borders_count];
+        double[] delta_height_border = new double[borders_count];
+
+        for (int i = 0; i < terrain_size - 1; i++)
+        {
+            for (int j = 0; j < terrain_size - 1; j++)
+            {
+                if (delta_heights[j, i] == 0)
+                    continue;
+
+                double coef_check = 0;
+                double coef_check_1 = 0;
+
+                double[] dist = new double[borders_count];
+                double[] distr_sink_buld = new double[borders_count];
+                double summ_dist = 0;
+                double summ_distr_sink_buld = 0;
+                for (int k = 0; k < borders_count; k++)
+                {
+                    dist[k] = ((step_z * j - step_x * borders_coordinates[k].x) * (step_z * j - step_x * borders_coordinates[k].x) +
+                              (step_x * i - step_x * borders_coordinates[k].z) * (step_x * i - step_x * borders_coordinates[k].z) +
+                              (delta_heights[j, i] * scale_y - borders_coordinates[k].y * scale_y) *
+                              (delta_heights[j, i] * scale_y - borders_coordinates[k].y * scale_y));
+                    summ_dist += dist[k];
+
+                    Vector3 vec_dist = new Vector3(step_z * j - step_z * borders_coordinates[k].x,
+                    delta_heights[j, i] * scale_y - borders_coordinates[k].y * scale_y,
+                    step_z * i - step_z * borders_coordinates[k].z);
+
+                    double cosa = (vec_dist.x * Velocity.x +
+                        vec_dist.y * Velocity.y +
+                        vec_dist.z * Velocity.z) /
+                        (vec_dist.magnitude * Velocity.magnitude);
+
+                    distr_sink_buld[k] = 0;
+                    if (cosa > 0)
+                    {
+                        distr_sink_buld[k] = cosa;
+                    }
+
+                    summ_distr_sink_buld += distr_sink_buld[k];
+                }
+
+                for (int k = 0; k < borders_count; k++)
+                {
+                    double distr_sink_coef = 1 / dist[k];
+                    coef_check += distr_sink_coef;
+                    delta_height_border[k] += distr_sink_coef * final_delta_sink[j, i];
+
+                    double distr_sink_buld_fin = distr_sink_buld[k];
+                    coef_check_1 += distr_sink_buld_fin;
+                    delta_height_border[k] += distr_sink_buld_fin * final_delta_buld[j, i];
+                }
+            }
+        }
+
+        for (int k = 0; k < borders_count; k++)
+        {
+            delta_heights_final[(int)borders_coordinates[k].x, (int)borders_coordinates[k].z] = (float)delta_height_border[k];
+        }
+    }
+
 
     void ErosionAlgorithm(ref float[,] delta_heights_final, in float[,] delta_heights, in List<Vector3> node_coordinates)
     {
